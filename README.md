@@ -20,7 +20,7 @@ I hope to turn this package into a Dockerised BIDS app soon for doing the proces
 
 In order to call `bloodstream`, you need to specify a `studypath` and a `configpath`.  
 
-* The `studypath` is the location of the BIDS data relative to the current working directory, e.g. `../ds004230`.  
+* The `studypath` is the location of the BIDS data, e.g. `../ds004230`  (relative or full paths are allowed).  
 
 * The `configpath` is the path to the `bloodstream` configuration file, which specifies the modelling choices which you will make as a user.  To create a configuration file, go to the [bloodstream configuration web app](https://mathesong.shinyapps.io/bloodstream_config/), fill in the fields as required, and download the JSON configuration file.  The `configpath` specifies the location of the downloaded config file, e.g. `../config_test_analysis.json`.
 
