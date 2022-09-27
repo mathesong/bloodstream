@@ -1,11 +1,13 @@
 Package: bloodstream
 Type: Package
-Title: What the Package Does (Title Case)
+Title: PET BIDS Blood Processing Pipeline
 Version: 0.1.0
-Author: Who wrote it
-Maintainer: The package maintainer <yourself@somewhere.net>
-Description: More about what it does (maybe more than one line)
-    Use four spaces when indenting paragraphs within the Description.
+Author: Granville J. Matheson
+Maintainer: Granville J. Matheson <mathesong@gmail.com>
+Description: bloodstream is a blood processing pipeline which 
+    automatically processes PET BIDS blood data and produces derivative
+    files ready for pharmacokinetic modelling. It allows users to decide
+    which models it should apply, and it processes the data accordingly.
 License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
