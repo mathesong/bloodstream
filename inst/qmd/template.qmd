@@ -1,0 +1,1129 @@
+---
+title: "Blood Processing Analysis"
+params:
+  configpath: "../extdata/config_2022-09-20_id-8kkzd.json"
+  studypath: "../../../ds004230/"
+format:
+  html:
+    code-fold: true
+    code-summary: "Show the code"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
+```
+
+```{r libraries}
+#| output: false
+
+library(tidyverse)
+library(jsonlite)
+library(cowplot)
+library(stringr)
+library(knitr)
+library(mgcv)
+library(gratia)
+
+library(kinfitr)
+# library(bloodstream)
+devtools::load_all()
+
+config <- jsonlite::fromJSON(params$configpath)
+config_subset <- parse_config_subsets(config)
+
+theme_set(theme_light())
+
+
+config$Model$ParentFraction$gam_k <- "6"
+```
+
+## Load the data
+
+<!-- No subsetting -->
+
+```{r}
+#| echo: false
+
+subsetting <- (nrow(config_subset) > 0)
+no_subsetting <- !subsetting
+```
+
+```{r load-data, eval=no_subsetting,echo=no_subsetting}
+bidsdata <- bids_parse_study(params$studypath)
+
+  extra_pet_details <- map(bidsdata$petinfo,
+                           get_filterable_attributes) %>%
+    bind_rows()
+
+  bidsdata <- bind_cols(extra_pet_details, bidsdata) %>%
+    all_identifiers_to_character()
+
+  
+bidsdata$pet <- attributes_to_title(bidsdata)
+bidsdata$fulltitle <- attributes_to_title(bidsdata, all_attributes = T)
+```
+
+<!-- Subsetting -->
+
+```{r subsetting, eval=subsetting,echo=subsetting}
+# Subsetting
+
+### Extract measurement information
+measurements <- bids_parse_files(params$studypath) %>%
+  mutate(petinfo = map(filedata,
+                            kinfitr:::bids_parse_petinfo))
+
+extra_pet_details <- map(measurements$petinfo,
+                         get_filterable_attributes) %>%
+  bind_rows()
+
+measurements <- bind_cols(extra_pet_details, measurements) %>%
+  all_identifiers_to_character()
+
+
+### Filter
+measurements <- measurements %>%
+  inner_join(config_subset, 
+             by = colnames(config_subset))
+
+
+### Continue to process
+bidsdata <- measurements
+bidsdata$blooddata <- purrr::map(bidsdata$filedata,
+    bids_create_blooddata)
+bidsdata$tactimes <- purrr::map(bidsdata$filedata,
+    kinfitr:::bids_parse_pettimes)
+bidsdata <- dplyr::filter(bidsdata, !is.na(tactimes))
+
+bidsdata$pet <- attributes_to_title(bidsdata)
+bidsdata$fulltitle <- attributes_to_title(bidsdata, all_attributes = T)
+```
+
+<!-- Data Subsetting -->
+
+```{r, eval=subsetting,echo=subsetting  }
+#| results: asis
+#| echo: false
+
+str_glue("## Data Subset
+
+           Based on the config file, only a subset of the data will be processed in this analysis. The subsets defined are as follows:")
+```
+
+```{r, eval=subsetting,echo=subsetting }
+kable(config_subset)
+```
+
+```{r, eval=subsetting,echo=subsetting }
+#| results: asis
+#| echo: false
+
+str_glue("The resulting list of blood measurements in the following analysis are as follows:")
+```
+
+```{r}
+#| echo: false
+bidsdata_attributes <- bidsdata %>% 
+  select(1:(which(colnames(bidsdata)=="filedata")-1), pet)
+```
+
+```{r subsetted-data,echo=FALSE, eval=subsetting}
+kable(bidsdata_attributes)
+```
+
+```{r}
+#| echo: false
+
+do_dispcor <- config$Model$WholeBlood$dispcor
+```
+
+```{r,echo=do_dispcor, eval=do_dispcor}
+#| results: asis
+
+str_glue("## Dispersion Correction
+         
+         Now we perform dispersion correction to account for dispersion through the tubing for the blood samples from the autosampler.")
+```
+
+```{r,echo=do_dispcor, eval=do_dispcor}
+# Check if specified
+for(i in 1:nrow(bidsdata)) {
+  
+  if(  is.null(bidsdata$blooddata[[i]]$Data$Blood$Continuous$DispersionCorrected)  ) {
+    bidsdata$blooddata[[i]]$Data$Blood$Continuous$DispersionCorrected <- FALSE
+  }
+  
+  if( is.null(bidsdata$blooddata[[i]]$Data$Blood$Continuous$DispersionConstant) ) {
+    warning("No dispersion constant is available for performing dispersion correction. No dispersion correction applied.\n\n")
+  } else{
+    
+    bidsdata$blooddata[[i]] <- bd_blood_dispcor(bidsdata$blooddata[[i]])
+  }
+}
+```
+
+## Initial Plotting
+
+Below is the raw blood data prior to any modelling. Inspect these plots to to check for strange values. The left plot is with the original times, while the right plot presents a log-scaled x axis, allowing closer inspection of the early parts of the curve.
+
+```{r initial-plotting, fig.height=5, fig.width=10}
+#| warning: false
+#| message: false
+#| fig-height: 4
+#| fig-width: 8
+
+map2(bidsdata$blooddata, bidsdata$pet,
+     plot_blooddata_extra)
+```
+
+## Modelling
+
+### Parent Fraction
+
+The selected modelling approach for modelling the parent fraction (PF) data is `r config$Model$ParentFraction$Method`.
+
+```{r }
+#| echo: false
+
+
+fit_pf <- config$Model$ParentFraction$Method != "Interpolation"
+
+choose_best_model <- (config$Model$ParentFraction$Method=="Fit Individually: Choose the best-fitting model")
+```
+
+<!-- Choose the best model -->
+
+```{r pf-modelcompare, eval=choose_best_model,echo=choose_best_model}
+#| fig-height: 4
+#| fig-width: 7
+
+pf_modelcompare <- compare_aic_metabmodels_group(bidsdata,
+                            fit_ppf0 = !config$Model$ParentFraction$set_ppf0,
+                            starttime = config$Model$ParentFraction$starttime,
+                            endtime = config$Model$ParentFraction$endtime,
+                            gam_k = as.numeric(config$Model$ParentFraction$gam_k))
+
+pf_modelcompare$plot
+
+kable(pf_modelcompare$scores)
+```
+
+```{r pf-modelcompare-description, eval=choose_best_model,echo=choose_best_model}
+#| results: asis
+#| echo: false
+
+str_glue("Based on the overall sum of the AIC scores, the winning model is `",
+       pf_modelcompare$scores$Model[1], "`. The parent fraction curves ",
+       "will therefore be fit using this method.")
+
+```
+
+```{r pf-model-update, eval=choose_best_model,echo=choose_best_model}
+#| echo: false
+
+config$Model$ParentFraction$Method <- paste0("Fit Individually: ",
+                                             pf_modelcompare$scores$Model[1])
+```
+
+```{r pf-setup}
+#| echo: false
+
+do_hill <- (config$Model$ParentFraction$Method=="Fit Individually: Hill")
+do_exp <-(config$Model$ParentFraction$Method=="Fit Individually: Exponential")
+do_power <-(config$Model$ParentFraction$Method=="Fit Individually: Power")
+do_sigmoid <-(config$Model$ParentFraction$Method=="Fit Individually: Sigmoid")
+do_invgamma <-(config$Model$ParentFraction$Method=="Fit Individually: Inverse Gamma")
+do_gamma <-(config$Model$ParentFraction$Method=="Fit Individually: Gamma")
+do_gam <-(config$Model$ParentFraction$Method=="Fit Individually: GAM")
+do_hgam <- (config$Model$ParentFraction$Method=="Fit Hierarchically: HGAM")
+```
+
+
+```{r pf-hill,echo=do_hill, eval=do_hill}
+#| fig-height: 4
+#| fig-width: 5
+
+# Extract Data
+pf_data <- bidsdata %>%
+  mutate(pf = map(blooddata, ~bd_extract(.x, output="parentFraction"))) %>%
+  mutate(pf = map(pf, ~.x %>%
+           filter(time >= as.numeric(config$Model$ParentFraction$starttime)*60) %>%
+           filter(time <= as.numeric(config$Model$ParentFraction$endtime)*60))) %>%
+  select(pet, pf)
+
+# Fit Model
+pf_data <- pf_data %>%
+  mutate(pf_fit = map(pf, ~metab_hill(.x$time, .x$parentFraction,
+                            fit_ppf0 = !config$Model$ParentFraction$set_ppf0)))
+
+# Make Predictions
+mintime <- 0
+maxtime <- max(map_dbl(pf_data$pf, ~max(.x$time)))
+predtimes <- seq(from=mintime, to=maxtime, length.out=1000)
+
+pf_data <- pf_data %>%
+  mutate(preds = map(pf_fit, ~tibble(
+    time = predtimes) %>%
+      mutate(parentFraction = predict(.x, newdata=list(time=time)))))
+
+# Plot
+pmap(list(pf_data$pf, pf_data$preds, pf_data$pet), plot_pf_preds)
+```
+
+```{r pf-exp,echo=do_exp, eval=do_exp}
+#| fig-height: 4
+#| fig-width: 5
+
+# Extract Data
+pf_data <- bidsdata %>%
+  mutate(pf = map(blooddata, ~bd_extract(.x, output="parentFraction"))) %>%
+  mutate(pf = map(pf, ~.x %>%
+           filter(time >= as.numeric(config$Model$ParentFraction$starttime)*60) %>%
+           filter(time <= as.numeric(config$Model$ParentFraction$endtime)*60))) %>%
+  select(pet, pf)
+
+# Fit Model
+pf_data <- pf_data %>%
+  mutate(pf_fit = map(pf, ~metab_exponential(.x$time, .x$parentFraction,
+                            fit_ppf0 = !config$Model$ParentFraction$set_ppf0)))
+
+# Make Predictions
+mintime <- 0
+maxtime <- max(map_dbl(pf_data$pf, ~max(.x$time)))
+predtimes <- seq(from=mintime, to=maxtime, length.out=1000)
+
+pf_data <- pf_data %>%
+  mutate(preds = map(pf_fit, ~tibble(
+    time = predtimes) %>%
+      mutate(parentFraction = predict(.x, newdata=list(time=time)))))
+
+# Plot
+pmap(list(pf_data$pf, pf_data$preds, pf_data$pet), plot_pf_preds)
+```
+
+```{r pf-power,echo=do_power, eval=do_power}
+#| fig-height: 4
+#| fig-width: 5
+
+# Extract Data
+pf_data <- bidsdata %>%
+  mutate(pf = map(blooddata, ~bd_extract(.x, output="parentFraction"))) %>%
+  mutate(pf = map(pf, ~.x %>%
+           filter(time >= as.numeric(config$Model$ParentFraction$starttime)*60) %>%
+           filter(time <= as.numeric(config$Model$ParentFraction$endtime)*60))) %>%
+  select(pet, pf)
+
+# Fit Model
+pf_data <- pf_data %>%
+  mutate(pf_fit = map(pf, ~metab_power(.x$time, .x$parentFraction,
+                            fit_ppf0 = !config$Model$ParentFraction$set_ppf0)))
+
+# Make Predictions
+mintime <- 0
+maxtime <- max(map_dbl(pf_data$pf, ~max(.x$time)))
+predtimes <- seq(from=mintime, to=maxtime, length.out=1000)
+
+pf_data <- pf_data %>%
+  mutate(preds = map(pf_fit, ~tibble(
+    time = predtimes) %>%
+      mutate(parentFraction = predict(.x, newdata=list(time=time)))))
+
+# Plot
+pmap(list(pf_data$pf, pf_data$preds, pf_data$pet), plot_pf_preds)
+```
+
+```{r pf-sigmoid,echo=do_sigmoid, eval=do_sigmoid}
+#| fig-height: 4
+#| fig-width: 5
+
+# Extract Data
+pf_data <- bidsdata %>%
+  mutate(pf = map(blooddata, ~bd_extract(.x, output="parentFraction"))) %>%
+  mutate(pf = map(pf, ~.x %>%
+           filter(time >= as.numeric(config$Model$ParentFraction$starttime)*60) %>%
+           filter(time <= as.numeric(config$Model$ParentFraction$endtime)*60))) %>%
+  select(pet, pf)
+
+# Fit Model
+pf_data <- pf_data %>%
+  mutate(pf_fit = map(pf, ~metab_sigmoid(.x$time, .x$parentFraction,
+                            fit_ppf0 = !config$Model$ParentFraction$set_ppf0)))
+
+# Make Predictions
+mintime <- 0
+maxtime <- max(map_dbl(pf_data$pf, ~max(.x$time)))
+predtimes <- seq(from=mintime, to=maxtime, length.out=1000)
+
+pf_data <- pf_data %>%
+  mutate(preds = map(pf_fit, ~tibble(
+    time = predtimes) %>%
+      mutate(parentFraction = predict(.x, newdata=list(time=time)))))
+
+# Plot
+pmap(list(pf_data$pf, pf_data$preds, pf_data$pet), plot_pf_preds)
+```
+
+```{r pf-invgamma,echo=do_invgamma, eval=do_invgamma}
+#| fig-height: 4
+#| fig-width: 5
+
+# Extract Data
+pf_data <- bidsdata %>%
+  mutate(pf = map(blooddata, ~bd_extract(.x, output="parentFraction"))) %>%
+  mutate(pf = map(pf, ~.x %>%
+           filter(time >= as.numeric(config$Model$ParentFraction$starttime)*60) %>%
+           filter(time <= as.numeric(config$Model$ParentFraction$endtime)*60))) %>%
+  select(pet, pf)
+
+# Fit Model
+pf_data <- pf_data %>%
+  mutate(pf_fit = map(pf, ~metab_invgamma(.x$time, .x$parentFraction,
+                            fit_ppf0 = !config$Model$ParentFraction$set_ppf0)))
+
+# Make Predictions
+mintime <- 0
+maxtime <- max(map_dbl(pf_data$pf, ~max(.x$time)))
+predtimes <- seq(from=mintime, to=maxtime, length.out=1000)
+
+pf_data <- pf_data %>%
+  mutate(preds = map(pf_fit, ~tibble(
+    time = predtimes) %>%
+      mutate(parentFraction = predict(.x, newdata=list(time=time)))))
+
+# Plot
+pmap(list(pf_data$pf, pf_data$preds, pf_data$pet), plot_pf_preds)
+```
+
+```{r pf-gamma,echo=do_gamma, eval=do_gamma}
+#| fig-height: 4
+#| fig-width: 5
+
+# Extract Data
+pf_data <- bidsdata %>%
+  mutate(pf = map(blooddata, ~bd_extract(.x, output="parentFraction"))) %>%
+  mutate(pf = map(pf, ~.x %>%
+           filter(time >= as.numeric(config$Model$ParentFraction$starttime)*60) %>%
+           filter(time <= as.numeric(config$Model$ParentFraction$endtime)*60))) %>%
+  select(pet, pf)
+
+# Fit Model
+pf_data <- pf_data %>%
+  mutate(pf_fit = map(pf, ~metab_gamma(.x$time, .x$parentFraction,
+                            fit_ppf0 = !config$Model$ParentFraction$set_ppf0)))
+
+# Make Predictions
+mintime <- 0
+maxtime <- max(map_dbl(pf_data$pf, ~max(.x$time)))
+predtimes <- seq(from=mintime, to=maxtime, length.out=1000)
+
+pf_data <- pf_data %>%
+  mutate(preds = map(pf_fit, ~tibble(
+    time = predtimes) %>%
+      mutate(parentFraction = predict(.x, newdata=list(time=time)))))
+
+# Plot
+pmap(list(pf_data$pf, pf_data$preds, pf_data$pet), plot_pf_preds)
+```
+
+```{r pf-gam,echo=do_gam, eval=do_gam}
+#| fig-height: 4
+#| fig-width: 5
+
+# Extract Data
+pf_data <- bidsdata %>%
+  mutate(pf = map(blooddata, ~bd_extract(.x, output="parentFraction"))) %>%
+  mutate(pf = map(pf, ~.x %>%
+           filter(time >= as.numeric(config$Model$ParentFraction$starttime)*60) %>%
+           filter(time <= as.numeric(config$Model$ParentFraction$endtime)*60))) %>%
+  select(pet, pf)
+
+# Fit Model
+config_pc <- ifelse(config$Model$ParentFraction$set_ppf0, 1, NULL)
+pf_gam_k <- as.numeric(config$Model$ParentFraction$gam_k)
+
+pf_data <- pf_data %>%
+  mutate(pf_fit = map(pf, ~mgcv::gam(parentFraction ~ s(time, 
+                                       k=pf_gam_k, 
+                                       pc=config_pc), 
+                                     data=.x, method = "REML")))
+
+# Make Predictions
+mintime <- 0
+maxtime <- max(map_dbl(pf_data$pf, ~max(.x$time)))
+predtimes <- seq(from=mintime, to=maxtime, length.out=1000)
+
+# pf_data <- pf_data %>%
+#   mutate(preds = map(pf_fit, ~tibble(
+#     time = predtimes) %>%
+#       mutate(parentFraction = predict(.x, newdata=list(time=time)))))
+
+pf_data <- pf_data %>%
+  mutate(preds = map2(pf_fit, pf,
+                      ~gratia::fitted_values(.x, data=list(time=predtimes)))) %>% 
+  mutate(preds = map(preds, ~rename(.x, parentFraction = fitted)))
+
+# Plot
+pmap(list(pf_data$pf, pf_data$preds, pf_data$pet), plot_pf_preds)
+```
+
+```{r pf-hgam-fit,echo=do_hgam, eval=do_hgam}
+#| fig-height: 4
+#| fig-width: 8
+
+# Extract Data
+pf_data <- bidsdata %>%
+  mutate(pf = map(blooddata, ~bd_extract(.x, output="parentFraction"))) %>%
+  mutate(pf = map(pf, ~.x %>%
+           filter(time >= as.numeric(config$Model$ParentFraction$starttime)*60) %>%
+           filter(time <= as.numeric(config$Model$ParentFraction$endtime)*60))) %>%
+  select(pet, pf)
+
+pf_data_long <- pf_data %>% 
+  inner_join(bidsdata_attributes) %>% 
+  unnest(pf) %>% 
+  mutate(across(is.character, as.factor))
+
+# Fit Model
+config_pc <- ifelse(config$Model$ParentFraction$set_ppf0, 1, NULL)
+hgam_formula <- as.formula(
+  paste0(
+    "(parentFraction ~ ",
+    config$Model$ParentFraction$hgam_formula,
+    ")" )
+  )
+
+pf_hgam_fit = mgcv::gam(formula = hgam_formula, 
+                            data=pf_data_long, method = "REML")
+
+# Diagnostics
+k.check(pf_hgam_fit)
+appraise(pf_hgam_fit)
+draw(pf_hgam_fit, scales = "fixed")
+```
+
+```{r pf-hgam-plot,echo=do_hgam, eval=do_hgam}
+#| fig-height: 4
+#| fig-width: 5
+
+# Make Predictions
+mintime <- 0
+maxtime <- max(map_dbl(pf_data$pf, ~max(.x$time)))
+predtimes <- seq(from=mintime, to=maxtime, length.out=1000)
+
+hgam_preds <- tidyr::expand_grid(bidsdata_attributes,
+                                 time = predtimes)
+
+hgam_preds <- gratia::fitted_values(pf_hgam_fit, data=hgam_preds) %>% 
+  rename(parentFraction = fitted) 
+
+pf_data <- inner_join(pf_data,
+                      hgam_preds %>% 
+                      group_by(pet) %>% 
+                      nest(preds = -pet))
+
+# Plot
+pmap(list(pf_data$pf, pf_data$preds, pf_data$pet), plot_pf_preds)
+```
+
+```{r, eval=fit_pf}
+#| results: asis
+#| echo: false
+
+str_glue("### Inserting the predictions")
+```
+
+```{r pf-update,echo=fit_pf, eval=fit_pf}
+bidsdata <- inner_join(bidsdata, pf_data) %>% 
+  mutate(preds = map(preds, ~mutate(.x, 
+                             parentFraction = as.numeric(
+                               ifelse(parentFraction > 1,
+                                          yes = 1,
+                                          no = parentFraction))))) %>% 
+  mutate(blooddata = map2(blooddata, preds, 
+                          ~bd_addfitted(.x, time = .y$time, 
+                                        predicted = as.numeric(.y$parentFraction), 
+                                        modeltype = "parentFraction"))) %>% 
+  select(-pf, -preds)
+
+if("pf_fit" %in% colnames(bidsdata)) {
+  bidsdata <- select(bidsdata, -pf_fit)
+}
+```
+
+### Blood-to-Plasma Ratio
+
+The selected modelling approach for modelling the blood-to-plasma (BPR) ratio data is `r config$Model$BPR$Method`.
+
+```{r bpr-setup}
+#| echo: false
+
+do_constant <- (config$Model$BPR$Method=="Fit Individually: Constant")
+do_linear <-(config$Model$BPR$Method=="Fit Individually: Linear")
+do_gam <-(config$Model$BPR$Method=="Fit Individually: GAM")
+do_hgam <-(config$Model$BPR$Method=="Fit Hierarchically: HGAM")
+
+fit_indiv <- str_detect(config$Model$BPR$Method, "Fit Individually")
+fit_hier <- str_detect(config$Model$BPR$Method, "Fit Hierarchically")
+
+fit_bpr <- config$Model$BPR$Method != "Interpolation"
+
+use_fitted <- do_constant || do_hgam
+use_fit <- do_linear || do_gam
+```
+
+```{r bpr-constant,echo=do_constant, eval=do_constant}
+#| fig-height: 4
+#| fig-width: 5
+
+# Extract Data
+bpr_data <- bidsdata %>%
+  mutate(bpr = map(blooddata, ~bd_extract(.x, output="BPR"))) %>%
+  mutate(bpr = map(bpr, ~.x %>%
+           filter(time >= as.numeric(config$Model$BPR$starttime)*60) %>%
+           filter(time <= as.numeric(config$Model$BPR$endtime)*60))) %>%
+  select(pet, bpr)
+
+# Fit Model
+bpr_data <- bpr_data %>%
+  mutate(bpr_fit = map(bpr, ~lm(bpr ~ 1, data=.x)))
+
+# Make Predictions
+mintime <- 0
+maxtime <- max(map_dbl(bpr_data$bpr, ~max(.x$time)))
+predtimes <- seq(from=mintime, to=maxtime, length.out=10)
+
+bpr_data <- bpr_data %>%
+  mutate(preds = map(bpr_fit, ~tibble(
+    time = predtimes,
+    bpr = as.numeric(coef(.x)[1]))))
+
+bpr_data <- bpr_data %>%
+  mutate(preds = map(bpr_fit, ~tibble(
+    time = predtimes)),
+         preds = map2(bpr_fit, preds, ~.y %>% 
+                        mutate(bpr = predict(.x, newdata=.y))))
+
+# Plot
+pmap(list(bpr_data$bpr, bpr_data$preds, bpr_data$pet), plot_bpr_preds)
+```
+
+```{r bpr-linear,echo=do_linear, eval=do_linear}
+#| fig-height: 4
+#| fig-width: 5
+
+# Extract Data
+bpr_data <- bidsdata %>%
+  mutate(bpr = map(blooddata, ~bd_extract(.x, output="BPR"))) %>%
+  mutate(bpr = map(bpr, ~.x %>%
+           filter(time >= as.numeric(config$Model$BPR$starttime)*60) %>%
+           filter(time <= as.numeric(config$Model$BPR$endtime)*60))) %>%
+  select(pet, bpr)
+
+# Fit Model
+bpr_data <- bpr_data %>%
+  mutate(bpr_fit = map(bpr, ~lm(bpr ~ time, data=.x)))
+
+# Make Predictions
+mintime <- 0
+maxtime <- max(map_dbl(bpr_data$bpr, ~max(.x$time)))
+predtimes <- seq(from=mintime, to=maxtime, length.out=1000)
+
+bpr_data <- bpr_data %>%
+  mutate(preds = map(bpr_fit, ~tibble(
+    time = predtimes)),
+         preds = map2(bpr_fit, preds, ~.y %>% 
+                        mutate(bpr = predict(.x, newdata=.y))))
+
+# Plot
+pmap(list(bpr_data$bpr, bpr_data$preds, bpr_data$pet), plot_bpr_preds)
+```
+
+```{r bpr-gam,echo=do_gam, eval=do_gam}
+#| fig-height: 4
+#| fig-width: 5
+
+# Extract Data
+bpr_data <- bidsdata %>%
+  mutate(bpr = map(blooddata, ~bd_extract(.x, output="BPR"))) %>%
+  mutate(bpr = map(bpr, ~.x %>%
+           filter(time >= as.numeric(config$Model$BPR$starttime)*60) %>%
+           filter(time <= as.numeric(config$Model$BPR$endtime)*60))) %>%
+  select(pet, bpr)
+
+# Fit Model
+bpr_data <- bpr_data %>%
+  mutate(bpr_fit = map(bpr, ~gam(bpr ~ s(time, 
+                                         k = as.numeric(config$Model$BPR$gam_k)), 
+                                 data=.x)))
+
+# Make Predictions
+mintime <- 0
+maxtime <- max(map_dbl(bpr_data$bpr, ~max(.x$time)))
+predtimes <- seq(from=mintime, to=maxtime, length.out=1000)
+
+bpr_data <- bpr_data %>%
+  mutate(preds = map2(bpr_fit, bpr,
+                      ~gratia::fitted_values(.x, data=list(time=predtimes)))) %>% 
+  mutate(preds = map(preds, ~rename(.x, bpr = fitted)))
+
+
+
+# Plot
+pmap(list(bpr_data$bpr, bpr_data$preds, bpr_data$pet), plot_bpr_preds)
+```
+
+```{r bpr-hgam-fit,echo=do_hgam, eval=do_hgam}
+#| fig-height: 4
+#| fig-width: 8
+
+# Extract Data
+bpr_data <- bidsdata %>%
+  mutate(bpr = map(blooddata, ~bd_extract(.x, output="BPR"))) %>%
+  mutate(bpr = map(bpr, ~.x %>%
+           filter(time >= as.numeric(config$Model$BPR$starttime)*60) %>%
+           filter(time <= as.numeric(config$Model$BPR$endtime)*60))) %>%
+  select(pet, bpr)
+
+bpr_data_long <- bpr_data %>% 
+  inner_join(bidsdata_attributes) %>% 
+  unnest(bpr) %>% 
+  mutate(across(is.character, as.factor))
+
+# Fit Model
+hgam_formula <- as.formula(
+  paste0(
+    "(bpr ~ ",
+    config$Model$BPR$hgam_formula,
+    ")" )
+  )
+
+bpr_hgam_fit = mgcv::gam(formula = hgam_formula, 
+                            data=bpr_data_long, method = "REML")
+
+# Diagnostics
+k.check(bpr_hgam_fit)
+appraise(bpr_hgam_fit)
+draw(bpr_hgam_fit, scales = "fixed")
+```
+
+```{r bpr-hgam-plot,echo=do_hgam, eval=do_hgam}
+#| fig-height: 4
+#| fig-width: 5
+
+# Make Predictions
+mintime <- 0
+maxtime <- max(map_dbl(bpr_data$bpr, ~max(.x$time)))
+predtimes <- seq(from=mintime, to=maxtime, length.out=1000)
+
+hgam_preds <- tidyr::expand_grid(bidsdata_attributes,
+                                 time = predtimes)
+
+hgam_preds <- gratia::fitted_values(bpr_hgam_fit, data=hgam_preds) %>% 
+  rename(bpr = fitted) 
+
+bpr_data <- inner_join(bpr_data,
+                      hgam_preds %>% 
+                      group_by(pet) %>% 
+                      nest(preds = -pet))
+
+# Plot
+pmap(list(bpr_data$bpr, bpr_data$preds, bpr_data$pet), plot_bpr_preds)
+```
+
+```{r, eval=fit_bpr}
+#| results: asis
+#| echo: false
+
+str_glue("### Inserting the predictions")
+```
+
+```{r bpr-update-fitted,echo=use_fitted, eval=use_fitted}
+bidsdata <- inner_join(bidsdata, bpr_data) %>% 
+  mutate(blooddata = map2(blooddata, preds, 
+                          ~bd_addfitted(.x, time = .y$time, 
+                                        predicted = as.numeric(.y$bpr), 
+                                        modeltype = "BPR"))) %>% 
+  select(-bpr, -preds)
+
+if("bpr_fit" %in% colnames(bidsdata)) {
+  bidsdata <- select(bidsdata, -bpr_fit)
+}
+```
+
+```{r bpr-update-fit,echo=use_fit, eval=use_fit}
+bidsdata <- inner_join(bidsdata, bpr_data) %>% 
+  mutate(blooddata = map2(blooddata, bpr_fit, 
+                          ~bd_addfit(.x, fit = .y,
+                                        modeltype = "BPR"))) %>% 
+  select(-bpr, -preds)
+
+if("bpr_fit" %in% colnames(bidsdata)) {
+  bidsdata <- select(bidsdata, -bpr_fit)
+}
+```
+
+### Arterial Input Function
+
+The selected modelling approach for modelling the arterial input function (AIF) data is `r config$Model$AIF$Method`.
+
+```{r aif-setup}
+#| echo: false
+
+do_triexp <-(config$Model$AIF$Method=="Fit Individually: Linear Rise, Triexponential Decay")
+do_feng <-(config$Model$AIF$Method=="Fit Individually: Feng")
+do_fengconv <-(config$Model$AIF$Method=="Fit Individually: FengConv")
+do_splines <-(config$Model$AIF$Method=="Fit Individually: Splines")
+
+fit_aif <- config$Model$AIF$Method != "Interpolation"
+```
+
+```{r aif-triexp,echo=do_triexp, eval=do_triexp}
+#| fig-height: 4
+#| fig-width: 9
+
+# Extract Data
+aif_data <- bidsdata %>%
+  mutate(aif = map(blooddata, ~bd_extract(.x, output="AIF"))) %>%
+  mutate(aif = map(aif, ~.x %>%
+           filter(time >= as.numeric(config$Model$AIF$starttime)*60) %>%
+           filter(time <= as.numeric(config$Model$AIF$endtime)*60))) %>%
+  select(pet, aif)
+
+# Fit Model
+expdecay_props <- as.numeric(
+  config$Model$AIF$expdecay_props)
+
+expdecay_props <- ifelse( is.na(expdecay_props),
+                          yes = c(1/60, 0.1),
+                          no = expdecay_props)
+
+aif_data <- aif_data %>%
+  mutate(aif_fit = map(aif, ~blmod_exp(time = .x$time, activity = .x$aif,
+                                       Method = .x$Method)))
+
+# Make Predictions
+mintime <- 0
+maxtime <- max(map_dbl(aif_data$aif, ~max(.x$time)))
+predtimes <- seq(from=mintime, to=maxtime, length.out=6000)
+
+aif_data <- aif_data %>%
+  mutate(preds = map(aif_fit, ~tibble(
+    time = predtimes) %>%
+      mutate(aif = kinfitr:::predict.blood_exp(.x, newdata=list(time=time)))))
+
+# Plot
+pmap(list(aif_data$aif, aif_data$preds, aif_data$pet), plot_aif_preds)
+```
+
+```{r aif-feng,echo=do_feng, eval=do_feng}
+#| fig-height: 4
+#| fig-width: 9
+
+# Extract Data
+aif_data <- bidsdata %>%
+  mutate(aif = map(blooddata, ~bd_extract(.x, output="AIF"))) %>%
+  mutate(aif = map(aif, ~.x %>%
+           filter(time >= as.numeric(config$Model$AIF$starttime)*60) %>%
+           filter(time <= as.numeric(config$Model$AIF$endtime)*60))) %>%
+  select(pet, aif)
+
+# Fit Model
+expdecay_props <- as.numeric(
+  config$Model$AIF$expdecay_props)
+
+expdecay_props <- ifelse( is.na(expdecay_props),
+                          yes = c(1/60, 0.1),
+                          no = expdecay_props)
+
+aif_data <- aif_data %>%
+  mutate(aif_fit = map(aif, ~blmod_feng(time = .x$time, activity = .x$aif,
+                                       Method = .x$Method)))
+
+# Make Predictions
+mintime <- 0
+maxtime <- max(map_dbl(aif_data$aif, ~max(.x$time)))
+predtimes <- seq(from=mintime, to=maxtime, length.out=6000)
+
+aif_data <- aif_data %>%
+  mutate(preds = map(aif_fit, ~tibble(
+    time = predtimes) %>%
+      mutate(aif = kinfitr:::predict.blood_feng(.x, newdata=list(time=time)))))
+
+# Plot
+pmap(list(aif_data$aif, aif_data$preds, aif_data$pet), plot_aif_preds)
+```
+
+```{r aif-fengconv,echo=do_fengconv, eval=do_feng}
+#| fig-height: 4
+#| fig-width: 9
+
+# Extract Data
+aif_data <- bidsdata %>%
+  mutate(aif = map(blooddata, ~bd_extract(.x, output="AIF"))) %>%
+  mutate(aif = map(aif, ~.x %>%
+           filter(time >= as.numeric(config$Model$AIF$starttime)*60) %>%
+           filter(time <= as.numeric(config$Model$AIF$endtime)*60))) %>%
+  select(pet, aif)
+
+# Fit Model
+expdecay_props <- as.numeric(
+  config$Model$AIF$expdecay_props)
+
+expdecay_props <- ifelse( is.na(expdecay_props),
+                          yes = c(1/60, 0.1),
+                          no = expdecay_props)
+
+inftime <- config$Model$AIF$inftime
+
+if( is.na(inftime) ) {  # Fit inftime completely
+  aif_data <- aif_data %>%
+  mutate(aif_fit = map(aif, ~blmod_fengconv(time = .x$time, activity = .x$aif,
+                                       Method = .x$Method )))
+} else {
+  aif_data <- aif_data %>%
+  mutate(aif_fit = map(aif, ~blmod_fengconv(time = .x$time, activity = .x$aif,
+                                       Method = .x$Method, inftime = inftime
+                                       )))
+  
+}
+
+
+# Make Predictions
+mintime <- 0
+maxtime <- max(map_dbl(aif_data$aif, ~max(.x$time)))
+predtimes <- seq(from=mintime, to=maxtime, length.out=6000)
+
+aif_data <- aif_data %>%
+  mutate(preds = map(aif_fit, ~tibble(
+    time = predtimes) %>%
+      mutate(aif = kinfitr:::predict.blood_fengconv(.x, newdata=list(time=time)))))
+
+# Plot
+pmap(list(aif_data$aif, aif_data$preds, aif_data$pet), plot_aif_preds)
+```
+
+```{r aif-splines,echo=do_splines, eval=do_splines}
+#| fig-height: 4
+#| fig-width: 9
+
+# Extract Data
+aif_data <- bidsdata %>%
+  mutate(aif = map(blooddata, ~bd_extract(.x, output="AIF"))) %>%
+  mutate(aif = map(aif, ~.x %>%
+           filter(time >= as.numeric(config$Model$AIF$starttime)*60) %>%
+           filter(time <= as.numeric(config$Model$AIF$endtime)*60))) %>%
+  select(pet, aif)
+
+# Fit Model
+kb <- ifelse(config$Model$AIF$spline_kb == "", yes = 10, 
+             no = config$Model$AIF$spline_kb)
+ka_m <- ifelse(config$Model$AIF$spline_ka_m == "", yes = 10, 
+             no = config$Model$AIF$spline_ka_m)
+ka_a <- ifelse(config$Model$AIF$spline_ka_a == "", yes = 10, 
+             no = config$Model$AIF$spline_ka_a)
+
+aif_data <- aif_data %>%
+  mutate(aif_fit = map(aif, ~blmod_splines(time = .x$time, activity = .x$aif,
+                                       Method = .x$Method, k_before = kb,
+                                       k_after_d = ka_m, k_after_c = ka_a)))
+
+# Make Predictions
+mintime <- 0
+maxtime <- max(map_dbl(aif_data$aif, ~max(.x$time)))
+predtimes <- seq(from=mintime, to=maxtime, length.out=6000)
+
+aif_data <- aif_data %>%
+  mutate(preds = map(aif_fit, ~tibble(
+    time = predtimes) %>%
+      mutate(aif = kinfitr:::predict.blood_splines(.x, newdata=list(time=time)))))
+
+# Plot
+pmap(list(aif_data$aif, aif_data$preds, aif_data$pet), plot_aif_preds)
+```
+
+```{r, eval=fit_aif}
+#| results: asis
+#| echo: false
+
+str_glue("### Inserting the predictions")
+```
+
+```{r aif-update,echo=fit_aif, eval=fit_aif}
+bidsdata <- inner_join(bidsdata, aif_data) %>% 
+  mutate(blooddata = map2(blooddata, aif_fit, 
+                          ~bd_addfit(.x, fit = .y,
+                                        modeltype = "AIF"))) %>% 
+  select(-aif, -preds)
+
+if("aif_fit" %in% colnames(bidsdata)) {
+  bidsdata <- select(bidsdata, -aif_fit)
+}
+```
+
+
+
+
+### Whole Blood
+
+The selected modelling approach for modelling the whole blood (WB) data is `r config$Model$WholeBlood$Method`.
+
+```{r wb-setup}
+#| echo: false
+
+do_splines <-(config$Model$WholeBlood$Method=="Fit Individually: Splines")
+
+fit_wb <- config$Model$WholeBlood$Method != "Interpolation"
+```
+
+```{r wb-splines,echo=do_splines, eval=do_splines}
+#| fig-height: 4
+#| fig-width: 9
+
+# Extract Data
+wb_data <- bidsdata %>%
+  mutate(wb = map(blooddata, ~bd_extract(.x, output="Blood"))) %>%
+  mutate(wb = map(wb, ~.x %>%
+           filter(time >= as.numeric(config$Model$WholeBlood$starttime)*60) %>%
+           filter(time <= as.numeric(config$Model$WholeBlood$endtime)*60))) %>%
+  select(pet, wb)
+
+# Fit Model
+kb <- ifelse(config$Model$WholeBlood$spline_kb == "", yes = 10, 
+             no = config$Model$WholeBlood$spline_kb)
+ka_m <- ifelse(config$Model$WholeBlood$spline_ka_m == "", yes = 10, 
+             no = config$Model$WholeBlood$spline_ka_m)
+ka_a <- ifelse(config$Model$WholeBlood$spline_ka_a == "", yes = 10, 
+             no = config$Model$WholeBlood$spline_ka_a)
+
+wb_data <- wb_data %>%
+  mutate(wb_fit = map(wb, ~blmod_splines(time = .x$time, activity = .x$activity,
+                                       Method = .x$Method, k_before = kb,
+                                       k_after_d = ka_m, k_after_c = ka_a)))
+
+# Make Predictions
+mintime <- 0
+maxtime <- max(map_dbl(wb_data$wb, ~max(.x$time)))
+predtimes <- seq(from=mintime, to=maxtime, length.out=6000)
+
+wb_data <- wb_data %>%
+  mutate(preds = map(wb_fit, ~tibble(
+    time = predtimes) %>%
+      mutate(activity = kinfitr:::predict.blood_splines(.x, newdata=list(time=time)))))
+
+# Plot
+pmap(list(wb_data$wb, wb_data$preds, wb_data$pet), plot_wb_preds)
+```
+
+```{r, eval=fit_wb}
+#| results: asis
+#| echo: false
+
+str_glue("### Inserting the predictions")
+```
+
+```{r wb-update,echo=fit_wb, eval=fit_wb}
+bidsdata <- inner_join(bidsdata, wb_data) %>% 
+  mutate(blooddata = map2(blooddata, wb_fit, 
+                          ~bd_addfit(.x, fit = .y,
+                                        modeltype = "AIF"))) %>% 
+  select(-wb, -preds)
+
+if("wb_fit" %in% colnames(bidsdata)) {
+  bidsdata <- select(bidsdata, -wb_fit)
+}
+```
+
+## Final Plotting
+
+```{r}
+#| echo: false
+
+final_plotting <- any(
+  fit_pf,
+  fit_bpr,
+  fit_aif,
+  fit_wb
+)
+
+all_interp <- !final_plotting
+```
+
+```{r, eval=fit_wb}
+#| results: asis
+#| echo: false
+
+str_glue("Below are shown the fits to all the blood data after modelling. Inspect these plots to make sure that everything seems fine.")
+```
+
+```{r final-plotting, fig.height=5, fig.width=10}
+#| warning: false
+#| message: false
+#| fig-height: 4
+#| fig-width: 8
+
+map2(bidsdata$blooddata, bidsdata$pet,
+     plot_blooddata_extra)
+```
+
+```{r, eval=all_interp}
+#| results: asis
+#| echo: false
+
+str_glue("Because no modelling was performed, the final plots are the same as the initial plots.")
+```
+
+## Output
+
+Now the final curves need to be interpolated...
+
+```{r interpolating}
+bidsdata <- bidsdata %>% 
+  mutate(input = map(blooddata, bd_create_input)) %>% 
+  mutate(input = map(input, ~rename(.x,
+                          "time" = Time,
+                          "whole_blood_radioactivity" = Blood,
+                          "plasma_radioactivity" = Plasma,
+                          "metabolite_parent_fraction" = ParentFraction,
+                          AIF = AIF))) %>% 
+  # Back to Bq/mL
+  mutate(input = map(input, ~mutate(.x,
+         whole_blood_radioactivity = 1000 * whole_blood_radioactivity,
+         plasma_radioactivity = 1000 * plasma_radioactivity,
+         AIF = 1000 * AIF)))
+```
+
+... and then saved to the derivatives folder.
+
+```{r}
+bidsdata <- bidsdata %>% 
+  mutate(bloodfilename = map_chr(filedata, ~.x %>% 
+                                  filter(measurement == "blood") %>% 
+                                  filter(str_detect(path, "manual_blood.json")) %>% 
+                                  slice(1) %>% 
+                                  pull(path) )) %>%
+  # Create filenames
+  mutate(output_basename = basename(bloodfilename),
+         output_basename = str_replace(output_basename,
+                                       "_recording-manual_blood.json",
+                                       "_inputfunction.tsv"),
+         output_folder = dirname(bloodfilename),
+         output_filename = paste0(params$studypath, "/derivatives/bloodstream/",
+                                output_folder, "/", output_basename)) %>% 
+  mutate(cfg_output_filename = str_replace(output_filename, "_inputfunction.tsv",
+                                           "_config.json"))
+
+walk( dirname(bidsdata$output_filename), 
+      dir.create, recursive=T)
+
+# Save interpolated files
+walk2(bidsdata$input,
+     bidsdata$output_filename, ~write_delim(.x, file=.y, 
+                                            delim = "\t"))
+
+# Save config files
+output_config <- config$Model
+
+walk(bidsdata$cfg_output_filename, 
+     ~jsonlite::write_json(output_config, path = .x, pretty=T))
+```
+
