@@ -853,7 +853,7 @@ aif_data <- aif_data %>%
 pmap(list(aif_data$aif, aif_data$preds, aif_data$pet), plot_aif_preds)
 ```
 
-```{r aif-fengconv,echo=do_fengconv, eval=do_feng}
+```{r aif-fengconv,echo=do_fengconv, eval=do_fengconv}
 #| fig-height: 4
 #| fig-width: 9
 

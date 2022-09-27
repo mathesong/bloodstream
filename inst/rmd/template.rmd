@@ -935,7 +935,7 @@ aif_data <- aif_data %>%
                        C = C*1000)))
 ```
 
-```{r aif-fengconv,echo=do_fengconv, eval=do_feng}
+```{r aif-fengconv,echo=do_fengconv, eval=do_fengconv}
 #| fig-height: 4
 #| fig-width: 9
 
