@@ -602,7 +602,7 @@ pmap(list(pf_data$pf, pf_data$preds, pf_data$pet), plot_pf_preds)
 #| results: asis
 #| echo: false
 
-str_glue("### Inserting the predictions")
+str_glue("#### Inserting the predictions")
 ```
 
 ```{r pf-update,echo=fit_pf, eval=fit_pf}
@@ -1095,11 +1095,11 @@ str_glue("The fitted parameters are shown below.")
 
 ```{r aif-parameters,echo=parametric_aif, eval=parametric_aif}
 aif_pars <- aif_data %>% 
-  mutate(aif_pars = map(aif_fit, ~as_tibble(as.list(coef(.x))))) %>% 
+  mutate(aif_pars = map(aif_fit, "par")) %>% 
   select(pet, aif_pars)
 
 aif_pars %>% 
-  unnest() %>% 
+  unnest(aif_pars) %>% 
   kable(digits=3)
 ```
 
@@ -1434,7 +1434,6 @@ add_aifpars_to_config <- function(output_config, aif_parameters) {
   output_config$AIF$Fit$Parameters = aif_parameters
   output_config$AIF$Fit$Units$time = "s"
   output_config$AIF$Fit$Units$AIF = "Bq"
-  output_config$session_info <- sessionInfo()
   output_config
 }
 
@@ -1453,9 +1452,15 @@ walk2(bidsdata$output_configdata, bidsdata$output_cfg_filename,
 
 ```{r save_config_nonparametric, eval=nonparam_aif, echo=nonparam_aif}
 output_config <- config$Model
-output_config$session_info <- sessionInfo()
 
 walk(bidsdata$output_cfg_filename, 
      ~jsonlite::write_json(output_config, path = .x, pretty=T))
+```
+
+
+# Session Info
+
+```{r sessioninfo}
+sessionInfo()
 ```
 
