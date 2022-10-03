@@ -49,11 +49,11 @@ no_subsetting <- !subsetting
 ```{r load-data, eval=no_subsetting,echo=no_subsetting}
 bidsdata <- bids_parse_study(params$studypath)
 
-  extra_pet_details <- map(bidsdata$petinfo,
+extra_pet_details <- map(bidsdata$petinfo,
                            get_filterable_attributes) %>%
     bind_rows()
 
-  bidsdata <- bind_cols(extra_pet_details, bidsdata) %>%
+bidsdata <- bind_cols(extra_pet_details, bidsdata) %>%
     all_identifiers_to_character()
 
   
@@ -289,6 +289,32 @@ do_invgamma <-(config$Model$ParentFraction$Method=="Fit Individually: Inverse Ga
 do_gamma <-(config$Model$ParentFraction$Method=="Fit Individually: Gamma")
 do_gam <-(config$Model$ParentFraction$Method=="Fit Individually: GAM")
 do_hgam <- (config$Model$ParentFraction$Method=="Fit Hierarchically: HGAM")
+
+parametric_pf <- any(do_hill, do_exp, do_power, do_sigmoid, 
+                     do_invgamma, do_gamma)
+nonparam_pf <- !parametric_pf
+
+
+# Cleaning up the config
+if( !do_gam ) {
+  config$Model$ParentFraction$gam_k <- NULL
+}
+
+if( !do_hgam ) {
+  config$Model$ParentFraction$hgam_formula <- NULL
+}
+
+if( do_hgam ) {
+  config$Model$ParentFraction$set_ppf0 <- NULL
+}
+
+if( config$Model$ParentFraction$starttime == 0 ) {
+  config$Model$ParentFraction$starttime <- NULL
+}
+
+if( config$Model$ParentFraction$endtime == Inf ) {
+  config$Model$ParentFraction$endtime <- NULL
+}
 ```
 
 
@@ -478,6 +504,26 @@ pf_data <- pf_data %>%
 pmap(list(pf_data$pf, pf_data$preds, pf_data$pet), plot_pf_preds)
 ```
 
+
+```{r, eval=parametric_pf}
+#| results: asis
+#| echo: false
+
+str_glue("The fitted parameters are shown below.")
+```
+
+```{r pf-parameters,echo=parametric_pf, eval=parametric_pf}
+pf_pars <- pf_data %>% 
+  mutate(pf_pars = map(pf_fit, ~as_tibble(as.list(coef(.x))))) %>% 
+  select(pet, pf_pars)
+
+pf_pars %>% 
+  unnest() %>% 
+  kable(digits=3)
+```
+
+
+
 ```{r pf-gam,echo=do_gam, eval=do_gam}
 #| fig-height: 4
 #| fig-width: 5
@@ -578,6 +624,9 @@ pf_data <- inner_join(pf_data,
 pmap(list(pf_data$pf, pf_data$preds, pf_data$pet), plot_pf_preds)
 ```
 
+
+
+
 ```{r, eval=fit_pf}
 #| results: asis
 #| echo: false
@@ -622,6 +671,27 @@ fit_bpr <- config$Model$BPR$Method != "Interpolation"
 
 use_fitted <- do_constant || do_hgam
 use_fit <- do_linear || do_gam
+
+parametric_bpr <- any(do_constant, do_linear)
+nonparam_bpr <- !parametric_bpr
+
+
+# Cleaning up the config
+if( !do_gam ) {
+  config$Model$BPR$gam_k <- NULL
+}
+
+if( !do_hgam ) {
+  config$Model$BPR$hgam_formula <- NULL
+}
+
+if( config$Model$BPR$starttime == 0 ) {
+  config$Model$BPR$starttime <- NULL
+}
+
+if( config$Model$BPR$endtime == Inf ) {
+  config$Model$BPR$endtime <- NULL
+}
 ```
 
 ```{r bpr-constant,echo=do_constant, eval=do_constant}
@@ -690,6 +760,27 @@ bpr_data <- bpr_data %>%
 # Plot
 pmap(list(bpr_data$bpr, bpr_data$preds, bpr_data$pet), plot_bpr_preds)
 ```
+
+
+
+```{r, eval=parametric_bpr}
+#| results: asis
+#| echo: false
+
+str_glue("The fitted parameters are shown below.")
+```
+
+```{r bpr-parameters,echo=parametric_bpr, eval=parametric_bpr}
+bpr_pars <- bpr_data %>% 
+  mutate(bpr_pars = map(bpr_fit, ~as_tibble(as.list(coef(.x))))) %>% 
+  select(pet, bpr_pars)
+
+bpr_pars %>% 
+  unnest() %>% 
+  kable(digits=3)
+```
+
+
 
 ```{r bpr-gam,echo=do_gam, eval=do_gam}
 #| fig-height: 4
@@ -838,6 +929,29 @@ fit_aif <- config$Model$AIF$Method != "Interpolation"
 
 parametric_aif <- any(do_triexp, do_feng, do_fengconv)
 nonparam_aif <- !parametric_aif
+
+# Cleaning up the config
+if( !do_splines ) {
+  config$Model$AIF$spline_kb <- NULL
+  config$Model$AIF$spline_ka_m <- NULL
+  config$Model$AIF$spline_ka_a <- NULL
+}
+
+if( !do_fengconv ) {
+  config$Model$AIF$inftime <- NULL
+}
+
+if( !(any(do_triexp, do_feng, do_fengconv)) ) {
+  config$Model$AIF$expdecay_props <- NULL
+}
+
+if( config$Model$AIF$starttime == 0 ) {
+  config$Model$AIF$starttime <- NULL
+}
+
+if( config$Model$AIF$endtime == Inf ) {
+  config$Model$AIF$endtime <- NULL
+}
 ```
 
 ```{r aif-triexp,echo=do_triexp, eval=do_triexp}
@@ -993,6 +1107,26 @@ aif_data <- aif_data %>%
                        C = C*1000)))
 ```
 
+
+
+```{r, eval=parametric_aif}
+#| results: asis
+#| echo: false
+
+str_glue("The fitted parameters are shown below.")
+```
+
+```{r aif-parameters,echo=parametric_aif, eval=parametric_aif}
+aif_pars <- aif_data %>% 
+  mutate(aif_pars = map(aif_fit, ~as_tibble(as.list(coef(.x))))) %>% 
+  select(pet, aif_pars)
+
+aif_pars %>% 
+  unnest() %>% 
+  kable(digits=3)
+```
+
+
 ```{r aif-splines,echo=do_splines, eval=do_splines}
 #| fig-height: 4
 #| fig-width: 9
@@ -1064,6 +1198,21 @@ The selected modelling approach for modelling the whole blood (WB) data is `r co
 do_splines <-(config$Model$WholeBlood$Method=="Fit Individually: Splines")
 
 fit_wb <- config$Model$WholeBlood$Method != "Interpolation"
+
+# Cleaning up the config
+if( !do_splines ) {
+  config$Model$WholeBlood$spline_kb <- NULL
+  config$Model$WholeBlood$spline_ka_m <- NULL
+  config$Model$WholeBlood$spline_ka_a <- NULL
+}
+
+if( config$Model$WholeBlood$starttime == 0 ) {
+  config$Model$WholeBlood$starttime <- NULL
+}
+
+if( config$Model$WholeBlood$endtime == Inf ) {
+  config$Model$WholeBlood$endtime <- NULL
+}
 ```
 
 ```{r wb-splines,echo=do_splines, eval=do_splines}
@@ -1280,6 +1429,7 @@ add_aifpars_to_config <- function(output_config, aif_parameters) {
   output_config$AIF$Fit$Parameters = aif_parameters
   output_config$AIF$Fit$Units$time = "s"
   output_config$AIF$Fit$Units$AIF = "Bq"
+  output_config$session_info <- sessionInfo()
   output_config
 }
 
@@ -1297,6 +1447,9 @@ walk2(bidsdata$output_configdata, bidsdata$output_cfg_filename,
 
 
 ```{r save_config_nonparametric, eval=nonparam_aif, echo=nonparam_aif}
+output_config <- config$Model
+output_config$session_info <- sessionInfo()
+
 walk(bidsdata$output_cfg_filename, 
      ~jsonlite::write_json(output_config, path = .x, pretty=T))
 ```

@@ -1,7 +1,7 @@
 ---
 title: "Blood Processing Analysis"
 params:
-  configpath: "../extdata/config_2022-09-20_id-8kkzd.json"
+  configpath: "../extdata/config_default.json"
   studypath: "../../../ds004230/"
 format:
   html:
@@ -23,18 +23,15 @@ library(stringr)
 library(knitr)
 library(mgcv)
 library(gratia)
+library(glue)
 
 library(kinfitr)
-# library(bloodstream)
-devtools::load_all()
+library(bloodstream)
 
 config <- jsonlite::fromJSON(params$configpath)
 config_subset <- parse_config_subsets(config)
 
 theme_set(theme_light())
-
-
-config$Model$ParentFraction$gam_k <- "6"
 ```
 
 ## Load the data
@@ -51,11 +48,11 @@ no_subsetting <- !subsetting
 ```{r load-data, eval=no_subsetting,echo=no_subsetting}
 bidsdata <- bids_parse_study(params$studypath)
 
-  extra_pet_details <- map(bidsdata$petinfo,
+extra_pet_details <- map(bidsdata$petinfo,
                            get_filterable_attributes) %>%
     bind_rows()
 
-  bidsdata <- bind_cols(extra_pet_details, bidsdata) %>%
+bidsdata <- bind_cols(extra_pet_details, bidsdata) %>%
     all_identifiers_to_character()
 
   
@@ -162,15 +159,65 @@ for(i in 1:nrow(bidsdata)) {
 }
 ```
 
-## Initial Plotting
+
+## Quality Control
+
+#### Parent Fraction
+
+```{r}
+#| results: asis
+pf_warnings <- map2_chr(bidsdata$blooddata, bidsdata$pet, qc_parentFraction)
+
+pf_warnings <- pf_warnings[!is.na(pf_warnings)]
+
+if(length(pf_warnings) > 0) {
+  glue_collapse(pf_warnings)
+} else {
+  glue_collapse("No detected issues.")
+}
+```
+
+#### Blood-to-Plasma Ratio
+
+```{r}
+#| results: asis
+bpr_warnings <- map2_chr(bidsdata$blooddata, bidsdata$pet, qc_bpr)
+
+bpr_warnings <- bpr_warnings[!is.na(bpr_warnings)]
+
+if(length(bpr_warnings) > 0) {
+  glue_collapse(bpr_warnings)
+} else {
+  glue_collapse("No detected issues.")
+}
+```
+
+#### Whole Blood
+
+```{r}
+#| results: asis
+wb_warnings <- map2_chr(bidsdata$blooddata, bidsdata$pet, qc_wb)
+
+wb_warnings <- wb_warnings[!is.na(wb_warnings)]
+
+if(length(wb_warnings) > 0) {
+  glue_collapse(wb_warnings)
+} else {
+  glue_collapse("No detected issues.")
+}
+```
+
+
+
+### Plotting
 
 Below is the raw blood data prior to any modelling. Inspect these plots to to check for strange values. The left plot is with the original times, while the right plot presents a log-scaled x axis, allowing closer inspection of the early parts of the curve.
 
 ```{r initial-plotting, fig.height=5, fig.width=10}
 #| warning: false
 #| message: false
-#| fig-height: 4
-#| fig-width: 8
+#| fig-height: 5
+#| fig-width: 11
 
 map2(bidsdata$blooddata, bidsdata$pet,
      plot_blooddata_extra)
@@ -182,7 +229,7 @@ map2(bidsdata$blooddata, bidsdata$pet,
 
 The selected modelling approach for modelling the parent fraction (PF) data is `r config$Model$ParentFraction$Method`.
 
-```{r }
+```{r}
 #| echo: false
 
 
@@ -569,6 +616,27 @@ fit_bpr <- config$Model$BPR$Method != "Interpolation"
 
 use_fitted <- do_constant || do_hgam
 use_fit <- do_linear || do_gam
+
+parametric_bpr <- any(do_constant, do_linear)
+nonparam_bpr <- !parametric_bpr
+
+
+# Cleaning up the config
+if( !do_gam ) {
+  config$Model$BPR$gam_k <- NULL
+}
+
+if( !do_hgam ) {
+  config$Model$BPR$hgam_formula <- NULL
+}
+
+if( config$Model$BPR$starttime == 0 ) {
+  config$Model$BPR$starttime <- NULL
+}
+
+if( config$Model$BPR$endtime == Inf ) {
+  config$Model$BPR$endtime <- NULL
+}
 ```
 
 ```{r bpr-constant,echo=do_constant, eval=do_constant}
@@ -734,7 +802,7 @@ pmap(list(bpr_data$bpr, bpr_data$preds, bpr_data$pet), plot_bpr_preds)
 #| results: asis
 #| echo: false
 
-str_glue("### Inserting the predictions")
+str_glue("#### Inserting the predictions")
 ```
 
 ```{r bpr-update-fitted,echo=use_fitted, eval=use_fitted}
@@ -773,6 +841,13 @@ do_triexp <-(config$Model$AIF$Method=="Fit Individually: Linear Rise, Triexponen
 do_feng <-(config$Model$AIF$Method=="Fit Individually: Feng")
 do_fengconv <-(config$Model$AIF$Method=="Fit Individually: FengConv")
 do_splines <-(config$Model$AIF$Method=="Fit Individually: Splines")
+
+aif_model_shortname <- case_when(
+  do_triexp    ~ "triexp",
+  do_feng      ~ "feng",
+  do_fengconv  ~ "fengconv",
+  TRUE         ~ "other"
+)
 
 fit_aif <- config$Model$AIF$Method != "Interpolation"
 ```
@@ -813,6 +888,16 @@ aif_data <- aif_data %>%
 
 # Plot
 pmap(list(aif_data$aif, aif_data$preds, aif_data$pet), plot_aif_preds)
+
+# Parameters
+aif_data <- aif_data %>% 
+  mutate(aif_pars = map(aif_fit, "par")) %>% 
+  # Conversion
+  mutate(aif_pars = map(aif_pars, ~.x %>% 
+                mutate(A = A*1000,  # kBq to Bq
+                       B = B*1000,
+                       C = C*1000,
+                       peakval = peakval*1000)))
 ```
 
 ```{r aif-feng,echo=do_feng, eval=do_feng}
@@ -851,6 +936,15 @@ aif_data <- aif_data %>%
 
 # Plot
 pmap(list(aif_data$aif, aif_data$preds, aif_data$pet), plot_aif_preds)
+
+# Parameters
+aif_data <- aif_data %>% 
+  mutate(aif_pars = map(aif_fit, "par")) %>% 
+  # Conversion
+  mutate(aif_pars = map(aif_pars, ~.x %>% 
+                mutate(A = A*1000,  # kBq to Bq
+                       B = B*1000,
+                       C = C*1000)))
 ```
 
 ```{r aif-fengconv,echo=do_fengconv, eval=do_fengconv}
@@ -900,7 +994,36 @@ aif_data <- aif_data %>%
 
 # Plot
 pmap(list(aif_data$aif, aif_data$preds, aif_data$pet), plot_aif_preds)
+
+# Parameters
+aif_data <- aif_data %>% 
+  mutate(aif_pars = map(aif_fit, "par")) %>% 
+  # Conversion
+  mutate(aif_pars = map(aif_pars, ~.x %>% 
+                mutate(A = A*1000,  # kBq to Bq
+                       B = B*1000,
+                       C = C*1000)))
 ```
+
+
+
+```{r, eval=parametric_aif}
+#| results: asis
+#| echo: false
+
+str_glue("The fitted parameters are shown below.")
+```
+
+```{r aif-parameters,echo=parametric_aif, eval=parametric_aif}
+aif_pars <- aif_data %>% 
+  mutate(aif_pars = map(aif_fit, ~as_tibble(as.list(coef(.x))))) %>% 
+  select(pet, aif_pars)
+
+aif_pars %>% 
+  unnest() %>% 
+  kable(digits=3)
+```
+
 
 ```{r aif-splines,echo=do_splines, eval=do_splines}
 #| fig-height: 4
@@ -945,7 +1068,7 @@ pmap(list(aif_data$aif, aif_data$preds, aif_data$pet), plot_aif_preds)
 #| results: asis
 #| echo: false
 
-str_glue("### Inserting the predictions")
+str_glue("#### Inserting the predictions")
 ```
 
 ```{r aif-update,echo=fit_aif, eval=fit_aif}
@@ -973,6 +1096,21 @@ The selected modelling approach for modelling the whole blood (WB) data is `r co
 do_splines <-(config$Model$WholeBlood$Method=="Fit Individually: Splines")
 
 fit_wb <- config$Model$WholeBlood$Method != "Interpolation"
+
+# Cleaning up the config
+if( !do_splines ) {
+  config$Model$WholeBlood$spline_kb <- NULL
+  config$Model$WholeBlood$spline_ka_m <- NULL
+  config$Model$WholeBlood$spline_ka_a <- NULL
+}
+
+if( config$Model$WholeBlood$starttime == 0 ) {
+  config$Model$WholeBlood$starttime <- NULL
+}
+
+if( config$Model$WholeBlood$endtime == Inf ) {
+  config$Model$WholeBlood$endtime <- NULL
+}
 ```
 
 ```{r wb-splines,echo=do_splines, eval=do_splines}
@@ -1018,7 +1156,7 @@ pmap(list(wb_data$wb, wb_data$preds, wb_data$pet), plot_wb_preds)
 #| results: asis
 #| echo: false
 
-str_glue("### Inserting the predictions")
+str_glue("#### Inserting the predictions")
 ```
 
 ```{r wb-update,echo=fit_wb, eval=fit_wb}
@@ -1058,8 +1196,8 @@ str_glue("Below are shown the fits to all the blood data after modelling. Inspec
 ```{r final-plotting, fig.height=5, fig.width=10}
 #| warning: false
 #| message: false
-#| fig-height: 4
-#| fig-width: 8
+#| fig-height: 5
+#| fig-width: 11
 
 map2(bidsdata$blooddata, bidsdata$pet,
      plot_blooddata_extra)
@@ -1074,6 +1212,36 @@ str_glue("Because no modelling was performed, the final plots are the same as th
 
 ## Output
 
+First, we create the relevant filenames, and delete any files in the relevant folders.
+
+```{r prep-output-filenames, results='hide'}
+bidsdata <- bidsdata %>% 
+  mutate(bloodfilename = map_chr(filedata, ~.x %>% 
+                                  filter(measurement == "blood") %>% 
+                                  filter(str_detect(path, "manual_blood.json")) %>% 
+                                  slice(1) %>% 
+                                  pull(path) )) %>%
+  # Blood tsv file
+  mutate(output_basename = basename(bloodfilename),
+         output_basename = str_replace(output_basename,
+                                       "_recording-manual_blood.json",
+                                       "_inputfunction.tsv"),
+         output_folder = dirname(bloodfilename),
+         output_filename = paste0(params$studypath, "/derivatives/bloodstream/",
+                                output_folder, "/", output_basename)) %>% 
+  # Blood json file
+  mutate(output_json_filename = str_replace(output_filename, "_inputfunction.tsv",
+                                           "_inputfunction.json")) %>% 
+  # Blood config file
+  mutate(output_cfg_filename = str_replace(output_filename, "_inputfunction.tsv",
+                                           "_config.json"))
+
+file.remove(bidsdata$output_filename)
+file.remove(bidsdata$output_json_filename)
+file.remove(bidsdata$output_cfg_filename)
+```
+
+
 Now the final curves need to be interpolated...
 
 ```{r interpolating}
@@ -1085,45 +1253,102 @@ bidsdata <- bidsdata %>%
                           "plasma_radioactivity" = Plasma,
                           "metabolite_parent_fraction" = ParentFraction,
                           AIF = AIF))) %>% 
-  # Back to Bq/mL
+  #unit_conversion
   mutate(input = map(input, ~mutate(.x,
-         whole_blood_radioactivity = 1000 * whole_blood_radioactivity,
-         plasma_radioactivity = 1000 * plasma_radioactivity,
-         AIF = 1000 * AIF)))
+         # min to sec                            
+         time = time * 60,
+         # kBq to Bq
+         whole_blood_radioactivity = unit_convert(whole_blood_radioactivity, 
+                                                  from_units = "kBq", 
+                                                  to_units = "Bq"),
+         plasma_radioactivity = unit_convert(plasma_radioactivity, "kBq", "Bq"),
+         AIF = unit_convert(AIF, "kBq", "Bq"))))
 ```
 
-... and then saved to the derivatives folder.
+... and save the tabular tsv files to the derivatives folder.
 
-```{r}
-bidsdata <- bidsdata %>% 
-  mutate(bloodfilename = map_chr(filedata, ~.x %>% 
-                                  filter(measurement == "blood") %>% 
-                                  filter(str_detect(path, "manual_blood.json")) %>% 
-                                  slice(1) %>% 
-                                  pull(path) )) %>%
-  # Create filenames
-  mutate(output_basename = basename(bloodfilename),
-         output_basename = str_replace(output_basename,
-                                       "_recording-manual_blood.json",
-                                       "_inputfunction.tsv"),
-         output_folder = dirname(bloodfilename),
-         output_filename = paste0(params$studypath, "/derivatives/bloodstream/",
-                                output_folder, "/", output_basename)) %>% 
-  mutate(cfg_output_filename = str_replace(output_filename, "_inputfunction.tsv",
-                                           "_config.json"))
-
+```{r save-tsvs}
 walk( dirname(bidsdata$output_filename), 
       dir.create, recursive=T)
 
-# Save interpolated files
+# Save interpolated tsv files
 walk2(bidsdata$input,
      bidsdata$output_filename, ~write_delim(.x, file=.y, 
                                             delim = "\t"))
+```
 
-# Save config files
+
+We also save json sidecars to accompany all the tabular data.
+
+```{r save-json-sidecars}
+output_description <- list(
+  time = list(
+      Description = "Interpolated time in relation to time zero defined in _pet.json",
+      Units = "s"
+    ),
+    whole_blood_radioactivity = list(
+      Description = "Estimated interpolated radioactivity in whole blood samples",
+      Units = "Bq"
+    ),
+    plasma_radioactivity = list(
+      Description = "Estimated interpolated radioactivity in whole plasma samples",
+      Units = "Bq"
+    ),
+    AIF = list(
+      Description = "Estimated interpolated radioactivity in metabolite-corrected arterial plasma samples",
+      Units = "Bq"
+    )
+)
+
+# Save interpolated json sidecars
+walk(bidsdata$output_json_filename, ~write_json(output_description, path = .x,
+                                                pretty=TRUE))
+```
+
+
+
+And finally, we include config files describing the models used for each step.
+
+```{r, eval=parametric_aif, echo=parametric_aif}
+#| results: asis
+#| echo: false
+
+str_glue("Because we used a parametric model for the AIF, we will first add the AIF parameters to the output. These parameters are refer to Bq/mL and seconds.")
+```
+
+```{r save_config_parametricaif, eval=parametric_aif, echo=parametric_aif}
+aif_pars <- aif_data %>%
+  select(pet, aif_parameters = aif_pars)
+
 output_config <- config$Model
 
-walk(bidsdata$cfg_output_filename, 
+
+add_aifpars_to_config <- function(output_config, aif_parameters) {
+  output_config$AIF$Fit$Parameters = aif_parameters
+  output_config$AIF$Fit$Units$time = "s"
+  output_config$AIF$Fit$Units$AIF = "Bq"
+  output_config$session_info <- sessionInfo()
+  output_config
+}
+
+
+bidsdata <- bidsdata %>%
+  inner_join(aif_pars, by="pet") %>%
+  mutate(output_configdata = map(aif_parameters,
+                                 ~add_aifpars_to_config(output_config, .x)))
+
+
+walk2(bidsdata$output_configdata, bidsdata$output_cfg_filename, 
+     ~jsonlite::write_json(.x, path = .y, 
+                           pretty=T))
+```
+
+
+```{r save_config_nonparametric, eval=nonparam_aif, echo=nonparam_aif}
+output_config <- config$Model
+output_config$session_info <- sessionInfo()
+
+walk(bidsdata$output_cfg_filename, 
      ~jsonlite::write_json(output_config, path = .x, pretty=T))
 ```
 
