@@ -11,7 +11,7 @@ The goal of `bloodstream` is to provide a simplified and automated pipeline for 
 You can install the development version of bloodstream like so:
 
 ``` r
-remotes::install_package("mathesong/bloodstream")
+remotes::install_github("mathesong/bloodstream")
 ```
 
 I hope to turn this package into a Dockerised BIDS app soon for doing the processing as a standalone app, but for now it can only be called through R.
