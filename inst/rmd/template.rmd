@@ -30,12 +30,26 @@ library(kinfitr)
 library(bloodstream)
 
 configpath <- params$configpath
+configname <- basename(configpath)
+
+config_suffix <- str_match(configname, "^config_?-?(.*)\\.json")[,2]
 
 config <- jsonlite::fromJSON(configpath)
 config_subset <- parse_config_subsets(config)
 
 theme_set(theme_light())
 ```
+
+
+
+## Modelling
+
+Here are the contents of the config file with regard to which models will be fit to the data and how.
+
+```{r}
+str(config$Model)
+```
+
 
 ## Load the data
 
@@ -221,14 +235,14 @@ if(length(wb_warnings) > 0) {
 
 Below is the raw blood data prior to any modelling. Inspect these plots to to check for strange values. The left plot is with the original times, while the right plot presents a log-scaled x axis, allowing closer inspection of the early parts of the curve.
 
-```{r initial-plotting, fig.height=5, fig.width=10}
+```{r initial-plotting, fig.height=5, fig.width=11}
 #| warning: false
 #| message: false
 #| fig-height: 5
 #| fig-width: 11
 
 map2(bidsdata$blooddata, bidsdata$pet,
-     plot_blooddata_extra)
+     ~plot_blooddata_extra(.x, .y)) 
 ```
 
 ## Modelling
@@ -611,7 +625,9 @@ pmap(list(pf_data$pf, pf_data$preds, pf_data$pet), plot_pf_preds)
 #| results: asis
 #| echo: false
 
-str_glue("#### Inserting the predictions")
+str_glue("#### Inserting the predictions
+         
+         Now we insert the model predictions into our blood data.")
 ```
 
 ```{r pf-update,echo=fit_pf, eval=fit_pf}
@@ -866,7 +882,9 @@ pmap(list(bpr_data$bpr, bpr_data$preds, bpr_data$pet), plot_bpr_preds)
 #| results: asis
 #| echo: false
 
-str_glue("#### Inserting the predictions")
+str_glue("#### Inserting the predictions
+         
+         Now we insert the model predictions into our blood data.")
 ```
 
 ```{r bpr-update-fitted,echo=use_fitted, eval=use_fitted}
@@ -971,7 +989,7 @@ predtimes <- seq(from=mintime, to=maxtime, length.out=6000)
 aif_data <- aif_data %>%
   mutate(preds = map(aif_fit, ~tibble(
     time = predtimes) %>%
-      mutate(aif = kinfitr:::predict.blood_exp(.x, newdata=list(time=time)))))
+      mutate(aif = predict(.x, newdata=list(time=time)))))
 
 # Plot
 pmap(list(aif_data$aif, aif_data$preds, aif_data$pet), plot_aif_preds)
@@ -1019,7 +1037,7 @@ predtimes <- seq(from=mintime, to=maxtime, length.out=6000)
 aif_data <- aif_data %>%
   mutate(preds = map(aif_fit, ~tibble(
     time = predtimes) %>%
-      mutate(aif = kinfitr:::predict.blood_feng(.x, newdata=list(time=time)))))
+      mutate(aif = predict(.x, newdata=list(time=time)))))
 
 # Plot
 pmap(list(aif_data$aif, aif_data$preds, aif_data$pet), plot_aif_preds)
@@ -1077,7 +1095,7 @@ predtimes <- seq(from=mintime, to=maxtime, length.out=6000)
 aif_data <- aif_data %>%
   mutate(preds = map(aif_fit, ~tibble(
     time = predtimes) %>%
-      mutate(aif = kinfitr:::predict.blood_fengconv(.x, newdata=list(time=time)))))
+      mutate(aif = predict(.x, newdata=list(time=time)))))
 
 # Plot
 pmap(list(aif_data$aif, aif_data$preds, aif_data$pet), plot_aif_preds)
@@ -1145,7 +1163,7 @@ predtimes <- seq(from=mintime, to=maxtime, length.out=6000)
 aif_data <- aif_data %>%
   mutate(preds = map(aif_fit, ~tibble(
     time = predtimes) %>%
-      mutate(aif = kinfitr:::predict.blood_splines(.x, newdata=list(time=time)))))
+      mutate(aif = predict(.x, newdata=list(time=time)))))
 
 # Plot
 pmap(list(aif_data$aif, aif_data$preds, aif_data$pet), plot_aif_preds)
@@ -1155,10 +1173,12 @@ pmap(list(aif_data$aif, aif_data$preds, aif_data$pet), plot_aif_preds)
 #| results: asis
 #| echo: false
 
-str_glue("#### Inserting the predictions")
+str_glue("#### Inserting the predictions
+         
+         Now we insert the model predictions into our blood data.")
 ```
 
-```{r aif-update,echo=fit_aif, eval=fit_aif}
+```{r aif-update,echo=parametric_aif, eval=parametric_aif}
 bidsdata <- inner_join(bidsdata, aif_data) %>% 
   mutate(blooddata = map2(blooddata, aif_fit, 
                           ~bd_addfit(.x, fit = .y,
@@ -1170,6 +1190,24 @@ if("aif_fit" %in% colnames(bidsdata)) {
 }
 ```
 
+
+```{r aif-update_nonpara,echo=nonparam_aif, eval=nonparam_aif}
+bidsdata <- inner_join(bidsdata, aif_data) %>% 
+  mutate(preds = map(preds, ~mutate(.x, 
+                             aif = as.numeric(
+                               ifelse(aif < 0,
+                                          yes = 0,
+                                          no = aif))))) %>% 
+  mutate(blooddata = map2(blooddata, preds, 
+                          ~bd_addfitted(.x, time = .y$time, 
+                                        predicted = as.numeric(.y$aif), 
+                                        modeltype = "AIF"))) %>% 
+  select(-aif, -preds)
+
+if("aif_fit" %in% colnames(bidsdata)) {
+  bidsdata <- select(bidsdata, -aif_fit)
+}
+```
 
 
 ```{r aif-config_cleanup, echo=FALSE}
@@ -1243,7 +1281,7 @@ predtimes <- seq(from=mintime, to=maxtime, length.out=6000)
 wb_data <- wb_data %>%
   mutate(preds = map(wb_fit, ~tibble(
     time = predtimes) %>%
-      mutate(activity = kinfitr:::predict.blood_splines(.x, newdata=list(time=time)))))
+      mutate(activity = predict(.x, newdata=list(time=time)))))
 
 # Plot
 pmap(list(wb_data$wb, wb_data$preds, wb_data$pet), plot_wb_preds)
@@ -1253,14 +1291,36 @@ pmap(list(wb_data$wb, wb_data$preds, wb_data$pet), plot_wb_preds)
 #| results: asis
 #| echo: false
 
-str_glue("#### Inserting the predictions")
+str_glue("#### Inserting the predictions
+         
+         Now we insert the model predictions into our blood data.")
 ```
+
+
+<!-- ```{r wb-update,echo=fit_wb, eval=fit_wb} -->
+<!-- bidsdata <- inner_join(bidsdata, wb_data) %>%  -->
+<!--   mutate(blooddata = map2(blooddata, wb_fit,  -->
+<!--                           ~bd_addfit(.x, fit = .y, -->
+<!--                                         modeltype = "Blood"))) %>%  -->
+<!--   select(-wb, -preds) -->
+
+<!-- if("wb_fit" %in% colnames(bidsdata)) { -->
+<!--   bidsdata <- select(bidsdata, -wb_fit) -->
+<!-- } -->
+<!-- ``` -->
+
 
 ```{r wb-update,echo=fit_wb, eval=fit_wb}
 bidsdata <- inner_join(bidsdata, wb_data) %>% 
-  mutate(blooddata = map2(blooddata, wb_fit, 
-                          ~bd_addfit(.x, fit = .y,
-                                        modeltype = "AIF"))) %>% 
+  mutate(preds = map(preds, ~mutate(.x, 
+                             activity = as.numeric(
+                               ifelse(activity < 0,
+                                          yes = 0,
+                                          no = activity))))) %>% 
+  mutate(blooddata = map2(blooddata, preds, 
+                          ~bd_addfitted(.x, time = .y$time, 
+                                        predicted = as.numeric(.y$activity), 
+                                        modeltype = "Blood"))) %>% 
   select(-wb, -preds)
 
 if("wb_fit" %in% colnames(bidsdata)) {
@@ -1308,7 +1368,7 @@ all_interp <- !final_plotting
 str_glue("Below are shown the fits to all the blood data after modelling. Inspect these plots to make sure that everything seems fine.")
 ```
 
-```{r final-plotting, fig.height=5, fig.width=10}
+```{r final-plotting, fig.height=5, fig.width=11}
 #| warning: false
 #| message: false
 #| fig-height: 5
@@ -1342,8 +1402,9 @@ bidsdata <- bidsdata %>%
                                        "_recording-manual_blood.json",
                                        "_inputfunction.tsv"),
          output_folder = dirname(bloodfilename),
-         output_filename = paste0(params$studypath, "/derivatives/bloodstream/",
-                                output_folder, "/", output_basename)) %>% 
+         output_filename = paste0(params$studypath, "/derivatives/bloodstream", 
+                                  config_suffix, "/",
+                                  output_folder, "/", output_basename)) %>% 
   # Blood json file
   mutate(output_json_filename = str_replace(output_filename, "_inputfunction.tsv",
                                            "_inputfunction.json")) %>% 
@@ -1463,6 +1524,28 @@ output_config <- config$Model
 
 walk(bidsdata$output_cfg_filename, 
      ~jsonlite::write_json(output_config, path = .x, pretty=T))
+```
+
+
+And finally, we save a dataset description file
+
+```{r}
+dataset_description <- list(
+  Name = "bloodstream Outputs",
+  BIDSVersion = "1.7.0",
+  DatasetType = "derivative",
+  GeneratedBy = list(
+    Name = "bloodstream",
+    Version = as.character(packageVersion("bloodstream")),
+    Container = NULL
+  )
+)
+
+jsonlite::write_json(dataset_description, 
+                     path = paste0(params$studypath, 
+                                   "/derivatives/bloodstream", config_suffix, 
+                                   "/dataset_description.json"),
+                     pretty = T)
 ```
 
 

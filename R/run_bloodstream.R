@@ -21,17 +21,20 @@ bloodstream <- function(studypath, configpath = NULL) {
 
   configname <- stringr::str_remove(basename(configpath), ".json")
 
-  if(stringr::str_detect(configname, pattern = "^config_")) {
-    configname <- stringr::str_remove(configname, "^config_")
+  if( !str_detect(configname, "^config") ) {
+    stop("The name of the config file is required to start with 'config'")
   }
 
-  templatepath <- system.file("extdata", "config_default.json", package="bloodstream")
+  config_suffix <- str_match(configname, "^config_?-?(.*)")[,2]
+
+  dir.create(paste0(studypath, "/derivatives/bloodstream", config_suffix))
 
   # quarto::quarto_render(
   #   input = paste0(system.file(package = "bloodstream"),
   #                  "/qmd/template.qmd"),
   #   output_file = paste0(studypath,
-  #                        "/derivatives/bloodstream/",
+  #                        "/derivatives/bloodstream",
+  #                        config_suffix, "/",
   #                        "bloodstream_report_config-",
   #                        configname, ".html"),
   #   execute_params = list(configpath = configpath,
@@ -42,11 +45,12 @@ bloodstream <- function(studypath, configpath = NULL) {
 
   rmarkdown::render(
     input = paste0(system.file(package = "bloodstream"),
-                   "/rmd/template.Rmd"),
+                   "/rmd/template.rmd"),
     output_file = paste0(studypath,
-                         "/derivatives/bloodstream/",
+                         "/derivatives/bloodstream",
+                         config_suffix, "/",
                          "bloodstream_report_config-",
-                         configname, ".html"),
+                         config_suffix, ".html"),
     params = list(configpath = configpath,
                           studypath = studypath),
     knit_root_dir = studypath
