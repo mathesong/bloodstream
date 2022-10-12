@@ -1079,6 +1079,9 @@ if( is.na(inftime) ) {  # Fit inftime completely
   mutate(aif_fit = map(aif, ~blmod_fengconv(time = .x$time, activity = .x$aif,
                                        Method = .x$Method )))
 } else {
+
+  inftime <- as.numeric(strsplit(inftime, ";")[[1]])
+  
   aif_data <- aif_data %>%
   mutate(aif_fit = map(aif, ~blmod_fengconv(time = .x$time, activity = .x$aif,
                                        Method = .x$Method, inftime = inftime
