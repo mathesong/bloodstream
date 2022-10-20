@@ -13,7 +13,7 @@
 bloodstream <- function(studypath, configpath = NULL) {
 
   if( is.null(configpath) ) {
-    configpath <- system.file("extdata", "config_default.json", package="bloodstream")
+    configpath <- system.file("extdata", "config.json", package="bloodstream")
   }
 
   studypath <- normalizePath(studypath, winslash = "/")
@@ -49,7 +49,9 @@ bloodstream <- function(studypath, configpath = NULL) {
     output_file = paste0(studypath,
                          "/derivatives/bloodstream",
                          config_suffix, "/",
-                         "bloodstream_report_config-",
+                         "bloodstream_report_config",
+                         ifelse(stringr::str_length(config_suffix) > 0,
+                                yes = "-", no = ""),
                          config_suffix, ".html"),
     params = list(configpath = configpath,
                           studypath = studypath),
