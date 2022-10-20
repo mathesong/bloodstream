@@ -58,7 +58,7 @@ str(config$Model)
 ```{r}
 #| echo: false
 
-subsetting <- (nrow(config_subset) > 0)
+subsetting <- (ncol(config_subset) > 0)
 no_subsetting <- !subsetting
 ```
 
@@ -308,7 +308,7 @@ do_hgam <- (config$Model$ParentFraction$Method=="Fit Hierarchically: HGAM")
 
 parametric_pf <- any(do_hill, do_exp, do_power, do_sigmoid, 
                      do_invgamma, do_gamma)
-nonparam_pf <- !parametric_pf
+# nonparam_pf <- !parametric_pf
 ```
 
 
@@ -695,7 +695,7 @@ use_fitted <- do_constant || do_hgam
 use_fit <- do_linear || do_gam
 
 parametric_bpr <- any(do_constant, do_linear)
-nonparam_bpr <- !parametric_bpr
+# nonparam_bpr <- !parametric_bpr
 ```
 
 ```{r bpr-constant,echo=do_constant, eval=do_constant}
@@ -954,7 +954,7 @@ aif_model_shortname <- case_when(
 fit_aif <- config$Model$AIF$Method != "Interpolation"
 
 parametric_aif <- any(do_triexp, do_feng, do_fengconv)
-nonparam_aif <- !parametric_aif
+nonparam_aif <- do_splines
 ```
 
 ```{r aif-triexp,echo=do_triexp, eval=do_triexp}
