@@ -574,15 +574,14 @@ pf_data <- bidsdata %>%
 pf_data_long <- pf_data %>% 
   inner_join(bidsdata_attributes) %>% 
   unnest(pf) %>% 
-  mutate(across(is.character, as.factor))
+  mutate(across(where(is.character), as.factor))
 
 # Fit Model
 config_pc <- ifelse(config$Model$ParentFraction$set_ppf0, 1, NULL)
 hgam_formula <- as.formula(
   paste0(
-    "(parentFraction ~ ",
-    config$Model$ParentFraction$hgam_formula,
-    ")" )
+    "parentFraction ~ ",
+    config$Model$ParentFraction$hgam_formula )
   )
 
 pf_hgam_fit = mgcv::gam(formula = hgam_formula, 
@@ -840,9 +839,8 @@ bpr_data_long <- bpr_data %>%
 # Fit Model
 hgam_formula <- as.formula(
   paste0(
-    "(bpr ~ ",
-    config$Model$BPR$hgam_formula,
-    ")" )
+    "bpr ~ ",
+    config$Model$BPR$hgam_formula )
   )
 
 bpr_hgam_fit = mgcv::gam(formula = hgam_formula, 
@@ -1074,13 +1072,11 @@ expdecay_props <- ifelse( is.na(expdecay_props),
 
 inftime <- config$Model$AIF$inftime
 
-if( is.na(inftime) ) {  # Fit inftime completely
+if( is.na(inftime)[1] ) {  # Fit inftime completely
   aif_data <- aif_data %>%
   mutate(aif_fit = map(aif, ~blmod_fengconv(time = .x$time, activity = .x$aif,
                                        Method = .x$Method )))
 } else {
-
-  inftime <- as.numeric(strsplit(inftime, ";")[[1]])
   
   aif_data <- aif_data %>%
   mutate(aif_fit = map(aif, ~blmod_fengconv(time = .x$time, activity = .x$aif,
