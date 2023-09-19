@@ -1,0 +1,16 @@
+# Base container lives at 
+#   - https://raw.githubusercontent.com/jupyter/docker-stacks/main/images/r-notebook/Dockerfile
+
+FROM jupyter/r-notebook:ubuntu-22.04
+
+USER root
+
+RUN apt-get update --yes && \
+    apt-get install --yes --no-install-recommends \
+      cmake && \
+    R -e 'remotes::install_github("mathesong/kinfitr")' && \
+    R -e 'remotes::install_github("mathesong/bloodstream")' && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+USER ${NB_UID}

@@ -42,6 +42,28 @@ It will generate the following outputs:
 * JSON sidecar accompanying the tabular tsv data (`*_inputfunction.tsv`).
 * Model configuration JSON files, containing the models used and the AIF fit parameters if applicable (`*_config.json`).
 
+## Docker
+
+The file `docker/dockerfile` can be used to create a container that can run bloodstream either interactively in a Jupyter notebook or directly in a terminal.
+
+To build the container, run: 
+
+```
+cd docker
+docker build -t bloodstream:ubuntu-22.04 .
+```
+
+The container derives from [`jupyter/r-notebook:ubuntu-22.04`](https://hub.docker.com/r/jupyter/r-notebook) (parent dockerfile lives [here](https://raw.githubusercontent.com/jupyter/docker-stacks/main/images/r-notebook/Dockerfile)) and can be invoked using:
+
+```
+docker run -it --rm \
+  -p 8888:8888  \
+  -v ${HOME}:/home/jovyan/work \
+  bloodstream:ubuntu-22.04
+```
+
+Then navigate to http://127.0.0.1:8888 (Look in the terminal output for the URL with the session token)
+
 ## Citation
 
 Until there is a preprint or publication about `bloodstream`, please just specify that "`bloodstream` was used for blood analysis, which is a blood processing pipeline built around `kinfitr` [REF]".  
