@@ -14,3 +14,7 @@ RUN apt-get update --yes && \
     rm -rf /var/lib/apt/lists/*
 
 USER ${NB_UID}
+
+RUN mamba install --yes r-optparse
+
+COPY run-bloodstream.R /home/${NB_USER}/run-bloodstream.R

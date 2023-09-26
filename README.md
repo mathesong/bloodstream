@@ -53,7 +53,11 @@ cd docker
 docker build -t bloodstream:ubuntu-22.04 .
 ```
 
-The container derives from [`jupyter/r-notebook:ubuntu-22.04`](https://hub.docker.com/r/jupyter/r-notebook) (parent dockerfile lives [here](https://raw.githubusercontent.com/jupyter/docker-stacks/main/images/r-notebook/Dockerfile)) and can be invoked using:
+The container derives from [`jupyter/r-notebook:ubuntu-22.04`](https://hub.docker.com/r/jupyter/r-notebook) (parent dockerfile lives [here](https://raw.githubusercontent.com/jupyter/docker-stacks/main/images/r-notebook/Dockerfile))
+
+### Running the container interactively
+
+The container can be used to launch a jupyter notebook using:
 
 ```
 docker run -it --rm \
@@ -63,6 +67,29 @@ docker run -it --rm \
 ```
 
 Then navigate to http://127.0.0.1:8888 (Look in the terminal output for the URL with the session token)
+
+### Running the container non-interactively
+
+The container can also be used to process datasets non-interactively using the script `run-bloodstream.R`, which is located at `/home/jovyan/run-bloodstream.R` inside the container.
+
+The script accepts 2 command like parameters:
+  - `--studypath` (or `-s`) The location of the BIDS dataset to process, inside the container
+  - `--config` (or `-c`) The location of the bloodstream configuration file, inside the container (can be generated using [this GUI](https://mathesong.shinyapps.io/bloodstream_config/)).  This parameter is optional, and will default to linear interpolation if not provdied.
+  
+#### Example
+
+Outside of the container, I have downloaded the [ds004230 dataset](https://openneuro.org/datasets/ds004230/versions/2.3.1) to `/home/paul/lcn/20230918-bloodstream-r/ds004230`.  I've generated a configuration file [using the GUI](https://mathesong.shinyapps.io/bloodstream_config/) and saved it to `/home/paul/lcn/20230918-bloodstream-r/config_2023-09-26_id-xJgk.json`
+
+The container can then be run using:
+
+```
+docker run -it --rm \
+  -v /home/paul:/home/jovyan/work \
+  bloodstream:ubuntu-22.04 \
+    /home/jovyan/run-bloodstream.R \
+      -s /home/jovyan/work/lcn/20230918-bloodstream-r/ds004230/ \
+      -c /home/jovyan/work/lcn/20230918-bloodstream-r/config_2023-09-26_id-p73t.json
+```
 
 ## Citation
 
