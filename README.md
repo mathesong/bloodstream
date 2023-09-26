@@ -14,15 +14,15 @@ You can install the development version of bloodstream like so:
 remotes::install_github("mathesong/bloodstream")
 ```
 
-I hope to turn this package into a Dockerised BIDS app soon for doing the processing as a standalone app, but for now it can only be called through R.
+I hope to turn this package into a Dockerised BIDS app soon for doing the processing as a standalone app, but for now it can only be called through R or by building the docker container described below.
 
 ## Usage
 
-In order to call `bloodstream`, you need to specify a `studypath` and a `configpath`.  
+In order to call `bloodstream`, you need to specify a `studypath` and a `configpath`.
 
-* The `studypath` is the location of the BIDS data, e.g. `../ds004230`  (relative or full paths are allowed).  
+* The `studypath` is the location of the BIDS data, e.g. `../ds004230`  (relative or full paths are allowed).
 
-* The `configpath` is the path to the `bloodstream` configuration file, which specifies the modelling choices which you will make as a user.  To create a configuration file, go to the [bloodstream configuration web app](https://mathesong.shinyapps.io/bloodstream_config/), fill in the fields as required, and download the JSON configuration file.  The `configpath` specifies the location of the downloaded config file, e.g. `../config_test_analysis.json`.
+* The `configpath` is the path to the `bloodstream` configuration file, which specifies the modelling choices which you will make as a user.  To create a configuration file, go to the [bloodstream configuration web app](https://mathesong.shinyapps.io/bloodstream_config/), fill in the fields as required, and download the JSON configuration file.  The `configpath` specifies the location of the downloaded config file, e.g. `../config_test_analysis.json`. If left blank, then the blood data will simply be combined using linear interpolation.
 
 The pipeline can then be called as follows:
 
@@ -44,7 +44,7 @@ It will generate the following outputs:
 
 ## Docker
 
-The file `docker/dockerfile` can be used to create a container that can run bloodstream either interactively in a Jupyter notebook or directly in a terminal.
+The file `docker/dockerfile` can be used to create a container that can run bloodstream either interactively in a Jupyter notebook or directly in a terminal (many thanks to @pwighton for this addition!).
 
 To build the container, run: 
 
@@ -54,6 +54,8 @@ docker build -t bloodstream:ubuntu-22.04 .
 ```
 
 The container derives from [`jupyter/r-notebook:ubuntu-22.04`](https://hub.docker.com/r/jupyter/r-notebook) (parent dockerfile lives [here](https://raw.githubusercontent.com/jupyter/docker-stacks/main/images/r-notebook/Dockerfile))
+
+At some point in the future, the docker functionality will be expanded to include a fully dockerised BIDS App.  But for now, this approach allows users to run `bloodstream` without needing to install R.
 
 ### Running the container interactively
 
@@ -93,7 +95,7 @@ docker run -it --rm \
 
 ## Citation
 
-Until there is a preprint or publication about `bloodstream`, please just specify that "`bloodstream` was used for blood analysis, which is a blood processing pipeline built around `kinfitr` [REF]".  
+Until there is a preprint or publication about `bloodstream`, please just specify that "`bloodstream` was used for blood analysis, which is a blood processing pipeline built around `kinfitr` [REF]".
 
 To cite `kinfitr`, please cite at least one of the following:
 
