@@ -1,0 +1,49 @@
+{
+  "Subsets": {
+    "sub": [""],
+    "ses": [""],
+    "rec": [""],
+    "task": [""],
+    "run": [""],
+    "TracerName": [""],
+    "ModeOfAdministration": [""],
+    "InstitutionName": [""],
+    "PharmaceuticalName": [""]
+  },
+  "Model": {
+    "ParentFraction": {
+      "Method": ["Fit Individually: Choose the best-fitting model"],
+      "set_ppf0": [true],
+      "starttime": [0.01],
+      "endtime": ["Inf"],
+      "gam_k": ["6"],
+      "hgam_formula": [""]
+    },
+    "BPR": {
+      "Method": ["Fit Hierarchically: HGAM"],
+      "starttime": [0.01],
+      "endtime": ["Inf"],
+      "gam_k": [6],
+      "hgam_formula": ["s(time, k=6) + s(time, ses, bs='fs', k=5)"]
+    },
+    "AIF": {
+      "Method": ["Fit Individually: Linear Rise, Triexponential Decay"],
+      "starttime": [0.01],
+      "endtime": [90],
+      "expdecay_props": ["NA", "NA"],
+      "inftime": ["NA"],
+      "spline_kb": [""],
+      "spline_ka_m": [""],
+      "spline_ka_a": [""]
+    },
+    "WholeBlood": {
+      "Method": ["Interpolation"],
+      "dispcor": [false],
+      "starttime": [0],
+      "endtime": ["Inf"],
+      "spline_kb": [""],
+      "spline_ka_m": [""],
+      "spline_ka_a": [""]
+    }
+  }
+}

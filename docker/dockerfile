@@ -1,16 +1,15 @@
-# Base container lives at 
-#   - https://raw.githubusercontent.com/jupyter/docker-stacks/main/images/r-notebook/Dockerfile
+# Use an R base image from Docker Hub
+FROM rocker/tidyverse:latest
 
-FROM jupyter/r-notebook:ubuntu-22.04
+# Install necessary dependencies
+RUN apt-get update && apt-get install -y \
+    libcurl4-openssl-dev \
+    libssl-dev \
+    libxml2-dev
 
-USER root
+# Install R packages
+RUN R -e "install.packages('devtools', repos = 'http://cran.rstudio.com/')"
+RUN R -e "remotes::install_github('mathesong/bloodstream', FORCE = TRUE)"
 
-RUN apt-get update --yes && \
-    apt-get install --yes --no-install-recommends \
-      cmake && \
-    R -e 'remotes::install_github("mathesong/kinfitr")' && \
-    R -e 'remotes::install_github("mathesong/bloodstream")' && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
-
-USER ${NB_UID}
+# Command to run your R script
+CMD ["Rscript", "/data/code/bloodstream/run_bloodstream.R", "config.json"]
