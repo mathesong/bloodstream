@@ -46,28 +46,32 @@ It will generate the following outputs:
 
 ## Docker
 
-The file `docker/dockerfile` can be used to create a container that can run bloodstream either interactively in a Jupyter notebook or directly in a terminal (many thanks to @pwighton for this addition!).
+The file `docker/Dockerfile` can be used to create a container that can run bloodstream.
 
 To build the container, run: 
 
 ```
 cd docker
-docker build -t bloodstream:ubuntu-22.04 .
+docker build -t bloodstream . --platform linux/amd64
 ```
 
-The container derives from [`jupyter/r-notebook:ubuntu-22.04`](https://hub.docker.com/r/jupyter/r-notebook) (parent dockerfile lives [here](https://raw.githubusercontent.com/jupyter/docker-stacks/main/images/r-notebook/Dockerfile)) and can be invoked using:
+To run the bloodstream analysis using the Docker container, you need to mount the directory containing your BIDS dataset. In your BIDS data, you should also create a directory named `code/bloodstream` and add the files `docker/config.json` and `docker/run_bloodstream.R`. The `docker/config.json` is the config file used to run bloodstream obtained from https://mathesong.shinyapps.io/bloodstream_config/. 
 
 ```
-docker run -it --rm \
-  -p 8888:8888  \
-  -v ${HOME}:/home/jovyan/work \
-  bloodstream:ubuntu-22.04
+docker run -v /path/bids_data:/data/ bloodstream
 ```
 
-Then navigate to http://127.0.0.1:8888 (Look in the terminal output for the URL with the session token)
+All outputs from the bloodstream analysis will be located in the `derivatives` directory in the BIDS directory. 
 
-At some point in the future, the docker functionality will be expanded to include a non-interactive mode as well as a fully dockerised BIDS App.  But for now, this approach allows users to run `bloodstream` without needing to install R.
+## Docker example
 
+If your BIDS dataset is located at `/Users/mn/my_study`. Then you create the directories `/Users/mn/my_study/code/bloodstream` and add the `config.json` and `run_bloodstream.R` to this directory. After that you can run 
+
+```
+docker run -v /Users/mn/mystudy:/data/ bloodstream
+```
+
+and all your outputs will be in `/Users/mn/my_study/derivatives/bloodstream`.
 
 ## Citation
 
