@@ -55,7 +55,7 @@ cd docker
 docker build -t bloodstream . --platform linux/amd64
 ```
 
-To run the bloodstream analysis using the Docker container, you need to mount the directory containing your BIDS dataset. In your BIDS data, you should also create a directory named `code/bloodstream` and add the files `docker/config.json` and `docker/run_bloodstream.R`. The `docker/config.json` is the config file used to run bloodstream obtained from https://mathesong.shinyapps.io/bloodstream_config/. 
+To run the bloodstream analysis using the Docker container, you need to mount the directory containing your BIDS dataset. In your BIDS data, you should also create a directory named `code/bloodstream` and add the file `config.json` obtained from https://mathesong.shinyapps.io/bloodstream_config/ (please note that the config file needs to be named `config.json`)
 
 ```
 docker run -v /path/bids_data:/data/ bloodstream
@@ -65,7 +65,7 @@ All outputs from the bloodstream analysis will be located in the `derivatives` d
 
 ## Docker example
 
-If your BIDS dataset is located at `/Users/mn/my_study`. Then you create the directories `/Users/mn/my_study/code/bloodstream` and add the `config.json` and `run_bloodstream.R` to this directory. After that you can run 
+If your BIDS dataset is located at `/Users/mn/my_study`. Then you create the directories `/Users/mn/my_study/code/bloodstream` and add the `config.json` to this directory. After that you can run 
 
 ```
 docker run -v /Users/mn/mystudy:/data/ bloodstream
