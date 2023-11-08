@@ -11,5 +11,8 @@ RUN apt-get update && apt-get install -y \
 RUN R -e "install.packages('devtools', repos = 'http://cran.rstudio.com/')"
 RUN R -e "remotes::install_github('mathesong/bloodstream', FORCE = TRUE)"
 
+# Create the R script
+RUN printf "# run_bloodstream.R\nbids_dir <- file.path('/data')\nconfig_file <- file.path(bids_dir, 'code/bloodstream', 'config.json')\n\n# Load necessary libraries\nlibrary(bloodstream)\n\n# Execute bloodstream\nbloodstream(bids_dir, config_file)" > run_bloodstream.R
+
 # Command to run your R script
-CMD ["Rscript", "/data/code/bloodstream/run_bloodstream.R", "config.json"]
+CMD ["Rscript", "run_bloodstream.R", "/data/code/bloodstream/config.json"]
