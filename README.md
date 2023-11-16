@@ -46,7 +46,7 @@ It will generate the following outputs:
 
 ## Docker
 
-The file `docker/Dockerfile` can be used to create a container that can run bloodstream.
+The file `docker/dockerfile` can be used to create a container that can run bloodstream.
 
 To build the container, run: 
 
@@ -55,23 +55,35 @@ cd docker
 docker build -t bloodstream . --platform linux/amd64
 ```
 
-To run the bloodstream analysis using the Docker container, you need to mount the directory containing your BIDS dataset. In your BIDS data, you should also create a directory named `code/bloodstream` and add the file `config.json` obtained from https://mathesong.shinyapps.io/bloodstream_config/ (please note that the config file needs to be named `config.json`)
+To run `bloodstream` using the Docker container, you need to mount the directory containing your BIDS dataset. Then you can run the container on your dataset as below.
 
 ```
-docker run -v /path/bids_data:/data/ bloodstream
+docker run -v /path/to/bids_data/:/data/ bloodstream
+```
+Note, that we have not provided a config.json file, and so `bloodstream` will simply make use of a default procedure using linear interpolation only, and not make use of any more advanced modelling routines.
+
+
+If you would like to make use of a config.json (which can be created using the [web app](https://mathesong.shinyapps.io/bloodstream_config/)) file, then you should place the generated config file into a directory within the BIDS directory named `/path/to/bids_data/code/bloodstream/` and name it with a title beginning with `config_`.  Then you can direct `bloodstream` to this filename as an input argument as follows:
+
+```
+docker run -v /path/to/bids_data/:/data/ bloodstream config_pf_bpr.json
 ```
 
-All outputs from the bloodstream analysis will be located in the `derivatives` directory in the BIDS directory. 
+All outputs from the bloodstream analysis will be located in the `/path/to/bids_data/derivatives` directory. 
 
+<!---
 ## Docker example
 
-If your BIDS dataset is located at `/Users/mn/my_study`. Then you create the directories `/Users/mn/my_study/code/bloodstream` and add the `config.json` to this directory. After that you can run 
+If your BIDS dataset is located at `/Users/mn/my_study`. Then you create the directories `/Users/mn/my_study/code/bloodstream` and add the `config.json` to this directory. After that you can run
 
 ```
 docker run -v /Users/mn/mystudy:/data/ bloodstream
 ```
 
 and all your outputs will be in `/Users/mn/my_study/derivatives/bloodstream`.
+-->
+
+
 
 ## Citation
 
