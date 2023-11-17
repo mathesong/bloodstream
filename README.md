@@ -16,7 +16,7 @@ You can install the development version of bloodstream like so:
 remotes::install_github("mathesong/bloodstream")
 ```
 
-I hope to turn this package into a Dockerised BIDS app soon for doing the processing as a standalone app, but for now it can only be called through R or by building the docker container described below.
+You can also use this package as a standalone dockerised BIDS app as described below.
 
 ## Usage
 
