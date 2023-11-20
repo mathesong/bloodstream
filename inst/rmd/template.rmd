@@ -14,7 +14,7 @@ output:
 knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
 ```
 
-```{r libraries}
+```{r libraries, warning=FALSE}
 #| output: false
 
 library(tidyverse)
@@ -1360,14 +1360,14 @@ final_plotting <- any(
 all_interp <- !final_plotting
 ```
 
-```{r, eval=fit_wb}
+```{r, eval=final_plotting}
 #| results: asis
 #| echo: false
 
 str_glue("Below are shown the fits to all the blood data after modelling. Inspect these plots to make sure that everything seems fine.")
 ```
 
-```{r final-plotting, fig.height=5, fig.width=11}
+```{r final-plotting, fig.height=5, fig.width=11, eval=final_plotting, echo=final_plotting}
 #| warning: false
 #| message: false
 #| fig-height: 5
@@ -1377,9 +1377,8 @@ map2(bidsdata$blooddata, bidsdata$pet,
      plot_blooddata_extra)
 ```
 
-```{r, eval=all_interp}
+```{r, eval=all_interp, echo=FALSE}
 #| results: asis
-#| echo: false
 
 str_glue("Because no modelling was performed, the final plots are the same as the initial plots.")
 ```
@@ -1442,7 +1441,7 @@ bidsdata <- bidsdata %>%
 
 ... and save the tabular tsv files to the derivatives folder.
 
-```{r save-tsvs}
+```{r save-tsvs, warning=FALSE}
 walk( dirname(bidsdata$output_filename), 
       dir.create, recursive=T)
 
