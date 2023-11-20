@@ -27,8 +27,9 @@ bloodstream <- function(studypath, configpath = NULL) {
 
   config_suffix <- str_match(configname, "^config_?-?(.*)")[,2]
 
-  dir.create(paste0(studypath, "/derivatives"))
-  dir.create(paste0(studypath, "/derivatives/bloodstream", config_suffix))
+  dir.create(paste0(studypath, "/derivatives"), showWarnings = FALSE)
+  dir.create(paste0(studypath, "/derivatives/bloodstream", config_suffix),
+             showWarnings = FALSE)
 
   # quarto::quarto_render(
   #   input = paste0(system.file(package = "bloodstream"),
