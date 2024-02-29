@@ -22,7 +22,7 @@ compare_aic_metabmodels_indiv <- function(blooddata, fit_ppf0 = FALSE,
                                           fit_ppf0 = fit_ppf0))
   invgamma <- tryAIC(kinfitr::metab_invgamma(pfdat$time, pfdat$parentFraction,
                                              fit_ppf0 = fit_ppf0))
-  gamma    <- tryAIC(kinfitr::metab_invgamma(pfdat$time, pfdat$parentFraction,
+  gamma    <- tryAIC(kinfitr::metab_gamma(pfdat$time, pfdat$parentFraction,
                                              fit_ppf0 = fit_ppf0))
   gam      <- tryAIC(mgcv::gam(parentFraction ~ s(time, k=as.numeric(gam_k)),
                                data=pfdat,
