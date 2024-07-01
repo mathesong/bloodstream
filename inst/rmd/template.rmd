@@ -52,7 +52,6 @@ str(config$Model)
 
 
 ## Load the data
-
 <!-- No subsetting -->
 
 ```{r}
@@ -535,25 +534,25 @@ config_pc <- ifelse(config$Model$ParentFraction$set_ppf0, 1, NULL)
 pf_gam_k <- as.numeric(config$Model$ParentFraction$gam_k)
 
 pf_data <- pf_data %>%
-  mutate(pf_fit = map(pf, ~mgcv::gam(parentFraction ~ s(time, 
+  mutate(pf = map(pf, ~.x %>% 
+                    filter(time > 0) %>% 
+  filter(parentFraction < 1) %>% 
+  filter(parentFraction > 0))) %>% 
+  mutate(pf_fit = map(pf, ~mgcv::gam(parentFraction ~ s(log(time), 
                                        k=pf_gam_k, 
                                        pc=config_pc), 
-                                     data=.x, method = "REML")))
+                                     data=.x, method = "REML",
+                                     family=betar(link="logit"))))
 
 # Make Predictions
 mintime <- 0
 maxtime <- max(map_dbl(pf_data$pf, ~max(.x$time)))
 predtimes <- seq(from=mintime, to=maxtime, length.out=1000)
 
-# pf_data <- pf_data %>%
-#   mutate(preds = map(pf_fit, ~tibble(
-#     time = predtimes) %>%
-#       mutate(parentFraction = predict(.x, newdata=list(time=time)))))
-
 pf_data <- pf_data %>%
   mutate(preds = map2(pf_fit, pf,
-                      ~gratia::fitted_values(.x, data=list(time=predtimes)))) %>% 
-  mutate(preds = map(preds, ~rename(.x, parentFraction = fitted)))
+                      ~fitted_values_nonzerotime(.x, data=tibble(time=predtimes)))) %>% 
+  mutate(preds = map(preds, ~rename(.x, parentFraction = .fitted)))
 
 # Plot
 pmap(list(pf_data$pf, pf_data$preds, pf_data$pet), plot_pf_preds)
@@ -574,7 +573,10 @@ pf_data <- bidsdata %>%
 pf_data_long <- pf_data %>% 
   inner_join(bidsdata_attributes) %>% 
   unnest(pf) %>% 
-  mutate(across(where(is.character), as.factor))
+  mutate(across(where(is.character), as.factor)) %>% 
+  filter(time > 0) %>% 
+  filter(parentFraction < 1) %>% 
+  filter(parentFraction > 0)
 
 # Fit Model
 config_pc <- ifelse(config$Model$ParentFraction$set_ppf0, 1, NULL)
@@ -585,7 +587,8 @@ hgam_formula <- as.formula(
   )
 
 pf_hgam_fit = mgcv::gam(formula = hgam_formula, 
-                            data=pf_data_long, method = "REML")
+                        data=pf_data_long, method = "REML",
+                        family=betar(link="logit"))
 
 # Diagnostics
 k.check(pf_hgam_fit)
@@ -605,8 +608,8 @@ predtimes <- seq(from=mintime, to=maxtime, length.out=1000)
 hgam_preds <- tidyr::expand_grid(bidsdata_attributes,
                                  time = predtimes)
 
-hgam_preds <- gratia::fitted_values(pf_hgam_fit, data=hgam_preds) %>% 
-  rename(parentFraction = fitted) 
+hgam_preds <- fitted_values_nonzerotime(pf_hgam_fit, data=hgam_preds) %>% 
+  rename(parentFraction = .fitted) 
 
 pf_data <- inner_join(pf_data,
                       hgam_preds %>% 

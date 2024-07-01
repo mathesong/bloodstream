@@ -7,6 +7,10 @@ compare_aic_metabmodels_indiv <- function(blooddata, fit_ppf0 = FALSE,
     dplyr::filter(time >= (starttime * 60)) %>%
     dplyr::filter(time <= (endtime * 60))
 
+  pfdat_beta <- pfdat %>%
+    dplyr::filter(parentFraction < 1) %>%
+    dplyr::filter(parentFraction > 0)
+
   tryAIC <- purrr::possibly(.f = ~suppressWarnings(AIC(.x)), otherwise = NA)
 
 
@@ -24,8 +28,8 @@ compare_aic_metabmodels_indiv <- function(blooddata, fit_ppf0 = FALSE,
                                              fit_ppf0 = fit_ppf0))
   gamma    <- tryAIC(kinfitr::metab_gamma(pfdat$time, pfdat$parentFraction,
                                              fit_ppf0 = fit_ppf0))
-  gam      <- tryAIC(mgcv::gam(parentFraction ~ s(time, k=as.numeric(gam_k)),
-                               data=pfdat,
+  gam      <- tryAIC(mgcv::gam(parentFraction ~ s(log(time), k=as.numeric(gam_k)),
+                               data=pfdat_beta, family = betar(link="logit"),
                                method = "REML"))
 
 

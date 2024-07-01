@@ -92,5 +92,26 @@ attributes_to_title <- function(bidsdata, all_attributes = FALSE) {
 
 }
 
+#' @export
+fitted_values_nonzerotime <- function(gamfit, data, zeroval = 1) {
 
+  data_zero <- data %>%
+    dplyr::filter(time == 0)
+
+  data_nonzero <- data %>%
+    dplyr::filter(time > 0)
+
+  nonzero_preds <- gratia::fitted_values(gamfit, data_nonzero)
+
+  zero_preds <- nonzero_preds %>%
+    dplyr::filter(time == min(time)) %>%
+    dplyr::mutate(time = 0) %>%
+    dplyr::mutate(.row = 0)
+
+  preds <- dplyr::bind_rows(zero_preds, nonzero_preds) %>%
+    dplyr::arrange(time)
+
+  return(preds)
+
+}
 

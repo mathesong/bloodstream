@@ -61,10 +61,10 @@ plot_pf_preds <- function(data, preds, title) {
     geom_point() +
     labs(title = title)
 
-  if( "upper" %in% colnames(preds) && "lower" %in% colnames(preds) ) {
+  if( ".upper_ci" %in% colnames(preds) && ".lower_ci" %in% colnames(preds) ) {
     outplot <- outplot +
       geom_ribbon(data=preds, fill="red", alpha=0.1,
-                  aes(ymin=lower, ymax=upper))
+                  aes(ymin=.lower_ci, ymax=.upper_ci))
   }
 
   return(outplot)
