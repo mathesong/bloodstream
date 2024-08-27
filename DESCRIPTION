@@ -26,6 +26,6 @@ Imports:
     tidyr
 Depends: 
     tidyverse
-RoxygenNote: 7.2.1
+RoxygenNote: 7.3.2
 Remotes: 
     mathesong/kinfitr

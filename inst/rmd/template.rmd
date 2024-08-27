@@ -187,7 +187,8 @@ for(i in 1:nrow(bidsdata)) {
 
 ```{r}
 #| results: asis
-pf_warnings <- map2_chr(bidsdata$blooddata, bidsdata$pet, qc_parentFraction)
+pf_warnings <- pmap_chr(list(bidsdata$blooddata, bidsdata$petinfo, bidsdata$pet), 
+                        qc_parentFraction)
 
 pf_warnings <- pf_warnings[!is.na(pf_warnings)]
 
@@ -202,7 +203,8 @@ if(length(pf_warnings) > 0) {
 
 ```{r}
 #| results: asis
-bpr_warnings <- map2_chr(bidsdata$blooddata, bidsdata$pet, qc_bpr)
+bpr_warnings <- pmap_chr(list(bidsdata$blooddata, bidsdata$petinfo, bidsdata$pet), 
+                         qc_bpr)
 
 bpr_warnings <- bpr_warnings[!is.na(bpr_warnings)]
 
@@ -217,7 +219,8 @@ if(length(bpr_warnings) > 0) {
 
 ```{r}
 #| results: asis
-wb_warnings <- map2_chr(bidsdata$blooddata, bidsdata$pet, qc_wb)
+wb_warnings <- pmap_chr(list(bidsdata$blooddata, bidsdata$petinfo, bidsdata$pet), 
+                        qc_wb)
 
 wb_warnings <- wb_warnings[!is.na(wb_warnings)]
 

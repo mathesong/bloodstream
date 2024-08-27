@@ -1,5 +1,5 @@
 #' @export
-qc_parentFraction <- function(blooddata, title) {
+qc_parentFraction <- function(blooddata, petinfo, title) {
 
   pf <- bd_extract(blooddata, "parentFraction")
 
@@ -8,6 +8,7 @@ qc_parentFraction <- function(blooddata, title) {
   below_0 <- sum(pf$parentFraction < 0)
   few_points <- nrow(pf) < 4
   all_1 <- all(pf$parentFraction == 1)
+  short_pf <- max(pf$time) < (0.3 * sum(petinfo$FrameDuration))
 
   max_pf <- round(max(pf$parentFraction),2)
   min_pf <- round(min(pf$parentFraction),2)
@@ -34,6 +35,10 @@ qc_parentFraction <- function(blooddata, title) {
     warnings <- stringr::str_glue(warnings, "*   **{title}** has parentFraction values all equal to 1, usually caused by a lack of metabolite data. Metabolite models cannot be fitted.\n\n")
   }
 
+  if( short_pf ) {
+    warnings <- stringr::str_glue(warnings, "*   **{title}** has a maximum parentFraction time less than 30% of the PET duration. Be extra careful with the model extrapolations.\n\n")
+  }
+
   if(warnings=="") {
     warnings <- NA
   }
@@ -43,7 +48,7 @@ qc_parentFraction <- function(blooddata, title) {
 }
 
 #' @export
-qc_bpr <- function(blooddata, title) {
+qc_bpr <- function(blooddata, petinfo, title) {
 
   bpr <- bd_extract(blooddata, "BPR")
   mean_bpr <- round(mean(bpr$bpr), 2)
@@ -55,6 +60,7 @@ qc_bpr <- function(blooddata, title) {
   low_mean <- mean_bpr < 0.25
   high_mean <- mean_bpr > 4
   all_1 <- all(bpr$bpr == 1)
+  short_bpr <- max(bpr$time) < (0.3 * sum(petinfo$FrameDuration))
 
   warnings <- c("")
 
@@ -82,6 +88,10 @@ qc_bpr <- function(blooddata, title) {
     warnings <- stringr::str_glue(warnings, "*   **{title}** has BPR values all equal to 1, usually caused by a lack of whole blood or plasma data. Care should be taken with both both blood modelling and TAC kinetic modelling.\n\n")
   }
 
+  if( short_bpr ) {
+    warnings <- stringr::str_glue(warnings, "*   **{title}** has a maximum BPR time less than 30% of the PET duration. Be extra careful with the model extrapolations.\n\n")
+  }
+
   if(warnings=="") {
     warnings <- NA
   }
@@ -93,7 +103,7 @@ qc_bpr <- function(blooddata, title) {
 
 
 #' @export
-qc_wb <- function(blooddata, title) {
+qc_wb <- function(blooddata, petinfo, title) {
 
   wb <- bd_extract(blooddata, "Blood")
 
@@ -103,6 +113,7 @@ qc_wb <- function(blooddata, title) {
   dup_times <- sum(duplicated(wb$time))
   lowest_peak <- min_wb / max_wb
   few_points <- nrow(wb) < 8
+  short_wb <- max(wb$time) < (0.3 * sum(petinfo$FrameDuration))
 
   lowest_peak_perc <- round(100*lowest_peak, 2)
 
@@ -114,11 +125,15 @@ qc_wb <- function(blooddata, title) {
   }
 
   if( lowest_peak < -0.1 ) {
-    warnings <- stringr::str_glue(warnings, "*   **{title}** has negative whole blood values lower than 10% of the peak value: {lowest_peak_perc}%.\n\n")
+    warnings <- stringr::str_glue(warnings, "*   **{title}** has very negative whole blood values relative to the peak value: {lowest_peak_perc}%.\n\n")
   }
 
   if( few_points ) {
     warnings <- stringr::str_glue(warnings, "*   **{title}** has fewer than 8 whole blood values, limiting the possible modelling options.\n\n")
+  }
+
+  if( short_wb ) {
+    warnings <- stringr::str_glue(warnings, "*   **{title}** has a maximum WB time less than 30% of the PET duration. Be extra careful with the model extrapolations.\n\n")
   }
 
   if(warnings=="") {
