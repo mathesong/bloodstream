@@ -1151,11 +1151,11 @@ aif_data <- bidsdata %>%
 
 # Fit Model
 kb <- ifelse(config$Model$AIF$spline_kb == "", yes = 10, 
-             no = config$Model$AIF$spline_kb)
+             no = as.numeric(config$Model$AIF$spline_kb))
 ka_m <- ifelse(config$Model$AIF$spline_ka_m == "", yes = 10, 
-             no = config$Model$AIF$spline_ka_m)
+             no = as.numeric(config$Model$AIF$spline_ka_m))
 ka_a <- ifelse(config$Model$AIF$spline_ka_a == "", yes = 10, 
-             no = config$Model$AIF$spline_ka_a)
+             no = as.numeric(config$Model$AIF$spline_ka_a))
 
 aif_data <- aif_data %>%
   mutate(aif_fit = map(aif, ~blmod_splines(time = .x$time, activity = .x$aif,

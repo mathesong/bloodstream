@@ -65,9 +65,16 @@ get_petname <- function(filedata) {
 #' @export
 attributes_to_title <- function(bidsdata, all_attributes = FALSE) {
 
+
   if( !all_attributes ) {
-    bidsdata <- bidsdata[,which(!apply(bidsdata, 2,
-                                       FUN = function(x) length(unique(x))==1))]
+    if(nrow(bidsdata) > 1) {
+      # More than one PET measurement
+      bidsdata <- bidsdata[,which(!apply(bidsdata, 2,
+                                         FUN = function(x) length(unique(x))==1))]
+    } else {
+      # Situation if only one PET
+      bidsdata <- dplyr::select(bidsdata, sub, ses, task, filedata)
+    }
   }
 
   cnames <- colnames(bidsdata)
