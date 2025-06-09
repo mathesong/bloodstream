@@ -578,6 +578,14 @@ pf_data_long <- pf_data %>%
   unnest(pf) %>% 
   mutate(across(where(is.character), as.factor)) %>% 
   filter(time > 0) %>% 
+  mutate(parentFraction = ifelse(
+    time > 0.1 & parentFraction == 1,
+    yes=0.995, no = parentFraction
+  )) %>% 
+  mutate(parentFraction = ifelse(
+    time > 0.1 & parentFraction == 0,
+    yes=0.005, no = parentFraction
+  )) %>% 
   filter(parentFraction < 1) %>% 
   filter(parentFraction > 0)
 
