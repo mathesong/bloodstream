@@ -579,15 +579,13 @@ pf_data_long <- pf_data %>%
   mutate(across(where(is.character), as.factor)) %>% 
   filter(time > 0) %>% 
   mutate(parentFraction = ifelse(
-    time > 0.1 & parentFraction == 1,
-    yes=0.995, no = parentFraction
+    parentFraction > 0.999,
+    yes=0.999, no = parentFraction
   )) %>% 
   mutate(parentFraction = ifelse(
-    time > 0.1 & parentFraction == 0,
-    yes=0.005, no = parentFraction
-  )) %>% 
-  filter(parentFraction < 1) %>% 
-  filter(parentFraction > 0)
+    parentFraction < 0.001,
+    yes=0.001, no = parentFraction
+  ))
 
 # Fit Model
 config_pc <- ifelse(config$Model$ParentFraction$set_ppf0, 1, NULL)
