@@ -1,19 +1,39 @@
 # Use an R base image from Docker Hub
 FROM rocker/tidyverse:latest
 
+# Arguments for user configuration
+ARG USER_ID=1000
+ARG GROUP_ID=1000
+ARG USER_NAME=bloodstream
+
 # Install necessary dependencies
 RUN apt-get update && apt-get install -y \
     libcurl4-openssl-dev \
     libssl-dev \
-    libxml2-dev
+    libxml2-dev \
+    && rm -rf /var/lib/apt/lists/*
 
 # Install R packages
 RUN R -e "install.packages('remotes', repos = 'http://cran.rstudio.com/')"
 RUN R -e "remotes::install_github('mathesong/bloodstream', FORCE = TRUE)"
 
+# Create user and group with specified IDs
+RUN if ! getent group ${GROUP_ID}; then groupadd -g ${GROUP_ID} ${USER_NAME}; fi && \
+    if ! getent passwd ${USER_ID}; then useradd -u ${USER_ID} -g ${GROUP_ID} -m -s /bin/bash ${USER_NAME}; fi
+
+# Create working directory and set ownership
+RUN mkdir -p /workdir && chown -R ${USER_ID}:${GROUP_ID} /workdir
+WORKDIR /workdir
+
 # Import the R script and make it executable
-COPY --chown=1001 ./run_bloodstream.R .
-RUN  chmod +x ./run_bloodstream.R
+COPY ./run_bloodstream.R .
+RUN chmod +x ./run_bloodstream.R && chown ${USER_ID}:${GROUP_ID} ./run_bloodstream.R
+
+# Create data directory and set permissions
+RUN mkdir -p /data && chown -R ${USER_ID}:${GROUP_ID} /data
+
+# Switch to non-root user
+USER ${USER_ID}:${GROUP_ID}
 
 # Thunderbirds are go!
 ENTRYPOINT ["./run_bloodstream.R"]

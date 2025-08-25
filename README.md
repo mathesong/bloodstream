@@ -46,19 +46,25 @@ It will generate the following outputs:
 
 ## Docker
 
-The file `docker/dockerfile` can be used to create a container that can run bloodstream.
+The bloodstream Docker image is available on Docker Hub at `mathesong/bloodstream:latest`.
 
-To build the container, run: 
+You can pull the pre-built image:
+
+```
+docker pull mathesong/bloodstream:latest
+```
+
+Alternatively, you can build the container locally using the file `docker/dockerfile`:
 
 ```
 cd docker
-docker build -t bloodstream . --platform linux/amd64
+docker build -t mathesong/bloodstream:latest . --platform linux/amd64
 ```
 
 To run `bloodstream` using the Docker container, you need to mount the directory containing your BIDS dataset. Then you can run the container on your dataset as below.
 
 ```
-docker run -v /path/to/bids_data/:/data/ bloodstream
+docker run --user $(id -u):$(id -g) -v /path/to/bids_data/:/data/ mathesong/bloodstream:latest
 ```
 Note, that we have not provided a config.json file, and so `bloodstream` will simply make use of a default procedure using linear interpolation only, and not make use of any more advanced modelling routines.
 
@@ -66,7 +72,7 @@ Note, that we have not provided a config.json file, and so `bloodstream` will si
 If you would like to make use of a config.json file (which can be created using the [web app](https://mathesong.shinyapps.io/bloodstream_config/)), then you should place the generated JSON file into a directory within the BIDS directory named `/path/to/bids_data/code/bloodstream/` and name it with a title beginning with `config_`.  Then you can direct `bloodstream` to this filename as an input argument as follows:
 
 ```
-docker run -v /path/to/bids_data/:/data/ bloodstream config_pf_bpr.json
+docker run --user $(id -u):$(id -g) -v /path/to/bids_data/:/data/ mathesong/bloodstream:latest config_pf_bpr.json
 ```
 
 Once complete, all outputs from the bloodstream analysis will be located in the `/path/to/bids_data/derivatives` directory. 
