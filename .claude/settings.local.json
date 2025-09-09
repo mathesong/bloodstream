@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//home/granville/Repositories/kinfitr_app/R/**)",
+      "Read(//home/granville/Repositories/bloodstream_config/**)",
+      "Read(//home/granville/Repositories/kinfitr_app/**)",
+      "Read(//home/granville/Repositories/kinfitr_app/**)",
+      "Read(//home/granville/Repositories/kinfitr_app/**)",
+      "Read(//home/granville/Repositories/kinfitr_app/docker/**)",
+      "Read(//home/granville/Repositories/bloodstream_config/**)",
+      "Bash(R:*)",
+      "Bash(./docker/run_bloodstream.R:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

@@ -6,6 +6,10 @@
 
 The goal of `bloodstream` is to provide a simplified and automated pipeline for processing BIDS blood data for PET. The `bloodstream` package is based on functions found in `kinfitr`, but strings them together into a blood processing pipeline, producing a parameterised report as well as processed blood derivatives.
 
+`bloodstream` can be used in two ways:
+- **Interactive Mode**: Define configuration files using a graphical user interface through a web browser
+- **Non-Interactive Mode**: Automated pipeline execution using pre-defined configurations
+
 For a short introduction to processing blood data for PET, as well as tutorial for how to use `bloodstream`, I've recorded an [explainer video](https://www.youtube.com/watch?v=Kud6MWYPKxg), which should help you get started.
 
 ## Installation
@@ -20,11 +24,13 @@ You can also use this package as a standalone dockerised BIDS app as described b
 
 ## Usage
 
+### R Package Usage
+
 In order to call `bloodstream`, you need to specify a `studypath` and a `configpath`.  
 
 * The `studypath` is the location of the BIDS data, e.g. `../ds004230`  (relative or full paths are allowed).  
 
-* The `configpath` is the path to the `bloodstream` configuration file, which specifies the modelling choices which you will make as a user.  To create a configuration file, go to the [bloodstream configuration web app](https://mathesong.shinyapps.io/bloodstream_config/), fill in the fields as required, and download the JSON configuration file.  The `configpath` specifies the location of the downloaded config file, e.g. `../config_test_analysis.json`. If left blank, then the blood data will simply be combined using linear interpolation.
+* The `configpath` is the path to the `bloodstream` configuration file, which specifies the modelling choices which you will make as a user. If left blank, then the blood data will simply be combined using linear interpolation.
 
 The pipeline can then be called as follows:
 
@@ -32,6 +38,25 @@ The pipeline can then be called as follows:
 library(bloodstream)
 bloodstream(studypath, configpath)
 ```
+
+### Interactive Configuration
+
+You can launch the interactive configuration interface directly from R:
+
+``` r
+library(bloodstream)
+# Launch interactive config app (always interactive)
+launch_bloodstream_app()
+
+# Launch with existing config to modify
+launch_bloodstream_app(config_file = "/path/to/existing/config.json")
+```
+
+The interactive app allows you to:
+- Create and modify configuration files using a graphical interface
+- Load existing configurations for editing
+- Download configuration files
+- Run the bloodstream pipeline directly from the app
 
 
 It will generate the following outputs:
@@ -50,32 +75,109 @@ The bloodstream Docker image is available on Docker Hub at `mathesong/bloodstrea
 
 You can pull the pre-built image:
 
-```
+```bash
 docker pull mathesong/bloodstream:latest
 ```
 
 Alternatively, you can build the container locally using the file `docker/dockerfile`:
 
-```
+```bash
 cd docker
 docker build -t mathesong/bloodstream:latest . --platform linux/amd64
 ```
 
-To run `bloodstream` using the Docker container, you need to mount the directory containing your BIDS dataset. Then you can run the container on your dataset as below.
+### Docker Usage
+
+The Docker container supports both interactive and non-interactive modes:
+
+#### Interactive Mode (Configuration Interface)
+
+Launch the interactive configuration interface:
+
+```bash
+# Basic interactive mode
+docker run -p 3838:3838 \
+  --user $(id -u):$(id -g) \
+  -v /path/to/bids:/data/bids_dir:ro \
+  -v /path/to/derivatives:/data/derivatives_dir \
+  mathesong/bloodstream:latest --mode interactive
+```
+
+Load an existing config file into the interface:
+
+```bash
+# Interactive mode with existing config (auto-detected)
+docker run -p 3838:3838 \
+  --user $(id -u):$(id -g) \
+  -v /path/to/bids:/data/bids_dir:ro \
+  -v /path/to/derivatives:/data/derivatives_dir \
+  -v /path/to/my_config.json:/config.json:ro \
+  mathesong/bloodstream:latest --mode interactive
+```
+
+Then open http://localhost:3838 in your browser to access the configuration interface.
+
+#### Non-Interactive Mode (Direct Pipeline Execution)
+
+Run the pipeline with default settings:
+
+```bash
+# Non-interactive with default config
+docker run \
+  --user $(id -u):$(id -g) \
+  -v /path/to/bids:/data/bids_dir:ro \
+  -v /path/to/derivatives:/data/derivatives_dir \
+  mathesong/bloodstream:latest
+```
+
+Run with a custom configuration file:
+
+```bash
+# Non-interactive with custom config (auto-detected)
+docker run \
+  --user $(id -u):$(id -g) \
+  -v /path/to/bids:/data/bids_dir:ro \
+  -v /path/to/derivatives:/data/derivatives_dir \
+  -v /path/to/my_config.json:/config.json:ro \
+  mathesong/bloodstream:latest
+```
+
+Run with custom analysis folder name:
+
+```bash
+# Non-interactive with custom config and folder name
+docker run \
+  --user $(id -u):$(id -g) \
+  -v /path/to/bids:/data/bids_dir:ro \
+  -v /path/to/derivatives:/data/derivatives_dir \
+  -v /path/to/my_config.json:/config.json:ro \
+  mathesong/bloodstream:latest \
+  --analysis_foldername "MyAnalysis"
+```
+
+### Docker Command Line Options
+
+- `--mode`: Execution mode (`interactive` or `non-interactive` [default])
+- `--analysis_foldername`: Custom name for analysis subfolder (overrides config filename)
+
+### Docker Mount Points
+
+- **BIDS Directory** (read-only): `/data/bids_dir` - Your BIDS dataset
+- **Derivatives Directory** (read-write): `/data/derivatives_dir` - Output location  
+- **Config File** (optional, read-only): `/config.json` - Auto-detected configuration file
+
+### Analysis Folder Structure
+
+Outputs are organized in analysis folders within `derivatives/bloodstream/`:
 
 ```
-docker run --user $(id -u):$(id -g) -v /path/to/bids_data/:/data/ mathesong/bloodstream:latest
-```
-Note, that we have not provided a config.json file, and so `bloodstream` will simply make use of a default procedure using linear interpolation only, and not make use of any more advanced modelling routines.
-
-
-If you would like to make use of a config.json file (which can be created using the [web app](https://mathesong.shinyapps.io/bloodstream_config/)), then you should place the generated JSON file into a directory within the BIDS directory named `/path/to/bids_data/code/bloodstream/` and name it with a title beginning with `config_`.  Then you can direct `bloodstream` to this filename as an input argument as follows:
-
-```
-docker run --user $(id -u):$(id -g) -v /path/to/bids_data/:/data/ mathesong/bloodstream:latest config_pf_bpr.json
+derivatives/bloodstream/
+├── my_config/                     # Auto-named from config filename
+├── MyAnalysis/                    # Custom named via --analysis_foldername  
+└── default/                       # Default when no config specified
 ```
 
-Once complete, all outputs from the bloodstream analysis will be located in the `/path/to/bids_data/derivatives` directory. 
+Once complete, all outputs from the bloodstream analysis will be located in the `derivatives/bloodstream/<analysis_folder>/` directory. 
 
 <!---
 ## Docker example
