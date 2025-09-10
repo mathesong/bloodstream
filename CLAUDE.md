@@ -61,9 +61,8 @@ launch_bloodstream_app(bids_dir = "/path/to/study")  # With data
 
 ### Docker Development
 ```bash
-# Build Docker image
-cd docker
-docker build -t mathesong/bloodstream:latest . --platform linux/amd64
+# Build Docker image (from bloodstream root directory, NOT docker subdirectory)
+docker build -f docker/dockerfile -t mathesong/bloodstream:latest . --platform linux/amd64
 
 # Pull pre-built image
 docker pull mathesong/bloodstream:latest

@@ -171,10 +171,13 @@ if (opt$mode == "interactive") {
   
   if (!is.null(config_source)) {
     # Copy config file to analysis directory for reproducibility
-    config_dest <- file.path(analysis_path, basename(config_source))
-    file.copy(config_source, config_dest, overwrite = TRUE)
-    config_to_use <- config_dest
-    cat("Copied config file to:", config_dest, "\n")
+    config_archive <- file.path(analysis_path, basename(config_source))
+    file.copy(config_source, config_archive, overwrite = TRUE)
+    cat("Saved config file to:", config_archive, "\n")
+    
+    # Also copy to a short path for execution (avoids path truncation issue)
+    config_to_use <- "/tmp/config.json"
+    file.copy(config_source, config_to_use, overwrite = TRUE)
   } else {
     cat("Using default config from package\n")
   }
