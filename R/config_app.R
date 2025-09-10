@@ -202,7 +202,30 @@ bloodstream_config_app <- function(bids_dir = NULL, derivatives_dir = NULL, conf
                    "k values may need to be altered.")),
             div(style="display:inline-block",textInput(inputId="aif_kb",   label="k before the peak", value = "")),
             div(style="display:inline-block",textInput(inputId="aif_ka_a", label="k after the peak (auto)", value = "")),
-            div(style="display:inline-block",textInput(inputId="aif_ka_m", label="k after the peak (manual)", value = ""))
+            div(style="display:inline-block",textInput(inputId="aif_ka_m", label="k after the peak (manual)", value = "")),
+            br(),
+            h4("Weighting Options for AIF Fitting"),
+            p(glue::glue("These options control how the AIF models are weighted during fitting. ",
+                   "Proper weighting can improve model fits, especially for parametric models.")),
+            
+            selectInput(inputId = "aif_weightscheme",
+                        label = "Weight scheme",
+                        choices = list("Uniform weighting" = 1,
+                                       "Time/activity weighting (Method 2)" = 2),
+                        selected = 2,
+                        multiple = FALSE),
+            
+            checkboxInput(inputId = "aif_method_weights",
+                          label = "Method weights",
+                          value = TRUE),
+            div(p("Divides weights between discrete and continuous samples equally"), 
+                style = "font-size:12px; margin-left:20px; margin-top:-10px;"),
+            
+            checkboxInput(inputId = "aif_taper_weights", 
+                          label = "Taper weights",
+                          value = TRUE),
+            div(p("Gradually trades off between continuous and discrete samples after peak"), 
+                style = "font-size:12px; margin-left:20px; margin-top:-10px;")
           ),
           
           tabPanel("Whole Blood",
@@ -336,6 +359,9 @@ bloodstream_config_app <- function(bids_dir = NULL, derivatives_dir = NULL, conf
         updateTextInput(session, "aif_kb", value = config_data$Model$AIF$spline_kb %||% "")
         updateTextInput(session, "aif_ka_a", value = config_data$Model$AIF$spline_ka_a %||% "")
         updateTextInput(session, "aif_ka_m", value = config_data$Model$AIF$spline_ka_m %||% "")
+        updateSelectInput(session, "aif_weightscheme", selected = config_data$Model$AIF$weightscheme %||% 2)
+        updateCheckboxInput(session, "aif_method_weights", value = config_data$Model$AIF$Method_weights %||% TRUE)
+        updateCheckboxInput(session, "aif_taper_weights", value = config_data$Model$AIF$taper_weights %||% TRUE)
         
         # Update Whole Blood inputs
         updateSelectInput(session, "wb_model", selected = config_data$Model$WholeBlood$Method %||% "Interpolation")
@@ -392,7 +418,10 @@ bloodstream_config_app <- function(bids_dir = NULL, derivatives_dir = NULL, conf
         inftime = as.numeric(stringr::str_split(input$aif_inftime, pattern = ";")[[1]]),
         spline_kb = input$aif_kb,
         spline_ka_m = input$aif_ka_m,
-        spline_ka_a = input$aif_ka_a
+        spline_ka_a = input$aif_ka_a,
+        weightscheme = as.numeric(input$aif_weightscheme),
+        Method_weights = input$aif_method_weights,
+        taper_weights = input$aif_taper_weights
       )
       
       WholeBlood <- list(

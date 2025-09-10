@@ -950,6 +950,20 @@ if( config$Model$BPR$endtime == Inf ) {
 
 The selected modelling approach for modelling the arterial input function (AIF) data is `r config$Model$AIF$Method`.
 
+```{r aif-weighting-info}
+#| echo: false
+#| eval: !expr config$Model$AIF$Method != "Interpolation"
+
+# Get weighting parameters with defaults for display
+weightscheme_display <- ifelse(is.null(config$Model$AIF$weightscheme), 2, config$Model$AIF$weightscheme)
+method_weights_display <- ifelse(is.null(config$Model$AIF$Method_weights), TRUE, config$Model$AIF$Method_weights)
+taper_weights_display <- ifelse(is.null(config$Model$AIF$taper_weights), TRUE, config$Model$AIF$taper_weights)
+
+weight_scheme_text <- ifelse(weightscheme_display == 1, "Uniform weighting", "Time/activity weighting (Method 2)")
+```
+
+**Weighting Configuration:** `r weight_scheme_text` with Method weights: `r method_weights_display` and Taper weights: `r taper_weights_display`.
+
 ```{r aif-setup}
 #| echo: false
 
@@ -991,9 +1005,17 @@ expdecay_props <- ifelse( is.na(expdecay_props),
                           yes = c(1/60, 0.1),
                           no = expdecay_props)
 
+# Set weighting parameters with defaults
+weightscheme <- ifelse(is.null(config$Model$AIF$weightscheme), 2, config$Model$AIF$weightscheme)
+Method_weights <- ifelse(is.null(config$Model$AIF$Method_weights), TRUE, config$Model$AIF$Method_weights)
+taper_weights <- ifelse(is.null(config$Model$AIF$taper_weights), TRUE, config$Model$AIF$taper_weights)
+
 aif_data <- aif_data %>%
   mutate(aif_fit = map(aif, ~blmod_exp(time = .x$time, activity = .x$aif,
-                                       Method = .x$Method)))
+                                       Method = .x$Method, 
+                                       weightscheme = weightscheme,
+                                       Method_weights = Method_weights,
+                                       taper_weights = taper_weights)))
 
 # Make Predictions
 mintime <- 0
@@ -1039,9 +1061,17 @@ expdecay_props <- ifelse( is.na(expdecay_props),
                           yes = c(1/60, 0.1),
                           no = expdecay_props)
 
+# Set weighting parameters with defaults
+weightscheme <- ifelse(is.null(config$Model$AIF$weightscheme), 2, config$Model$AIF$weightscheme)
+Method_weights <- ifelse(is.null(config$Model$AIF$Method_weights), TRUE, config$Model$AIF$Method_weights)
+taper_weights <- ifelse(is.null(config$Model$AIF$taper_weights), TRUE, config$Model$AIF$taper_weights)
+
 aif_data <- aif_data %>%
   mutate(aif_fit = map(aif, ~blmod_feng(time = .x$time, activity = .x$aif,
-                                       Method = .x$Method)))
+                                       Method = .x$Method,
+                                       weightscheme = weightscheme,
+                                       Method_weights = Method_weights,
+                                       taper_weights = taper_weights)))
 
 # Make Predictions
 mintime <- 0
@@ -1088,16 +1118,26 @@ expdecay_props <- ifelse( is.na(expdecay_props),
 
 inftime <- config$Model$AIF$inftime
 
+# Set weighting parameters with defaults
+weightscheme <- ifelse(is.null(config$Model$AIF$weightscheme), 2, config$Model$AIF$weightscheme)
+Method_weights <- ifelse(is.null(config$Model$AIF$Method_weights), TRUE, config$Model$AIF$Method_weights)
+taper_weights <- ifelse(is.null(config$Model$AIF$taper_weights), TRUE, config$Model$AIF$taper_weights)
+
 if( is.na(inftime)[1] ) {  # Fit inftime completely
   aif_data <- aif_data %>%
   mutate(aif_fit = map(aif, ~blmod_fengconv(time = .x$time, activity = .x$aif,
-                                       Method = .x$Method )))
+                                       Method = .x$Method,
+                                       weightscheme = weightscheme,
+                                       Method_weights = Method_weights,
+                                       taper_weights = taper_weights)))
 } else {
   
   aif_data <- aif_data %>%
   mutate(aif_fit = map(aif, ~blmod_fengconv(time = .x$time, activity = .x$aif,
-                                       Method = .x$Method, inftime = inftime
-                                       )))
+                                       Method = .x$Method, inftime = inftime,
+                                       weightscheme = weightscheme,
+                                       Method_weights = Method_weights,
+                                       taper_weights = taper_weights)))
   
 }
 
@@ -1165,10 +1205,18 @@ ka_m <- ifelse(config$Model$AIF$spline_ka_m == "", yes = 10,
 ka_a <- ifelse(config$Model$AIF$spline_ka_a == "", yes = 10, 
              no = as.numeric(config$Model$AIF$spline_ka_a))
 
+# Set weighting parameters with defaults
+weightscheme <- ifelse(is.null(config$Model$AIF$weightscheme), 2, config$Model$AIF$weightscheme)
+Method_weights <- ifelse(is.null(config$Model$AIF$Method_weights), TRUE, config$Model$AIF$Method_weights)
+taper_weights <- ifelse(is.null(config$Model$AIF$taper_weights), TRUE, config$Model$AIF$taper_weights)
+
 aif_data <- aif_data %>%
   mutate(aif_fit = map(aif, ~blmod_splines(time = .x$time, activity = .x$aif,
                                        Method = .x$Method, k_before = kb,
-                                       k_after_d = ka_m, k_after_c = ka_a)))
+                                       k_after_d = ka_m, k_after_c = ka_a,
+                                       weightscheme = weightscheme,
+                                       Method_weights = Method_weights,
+                                       taper_weights = taper_weights)))
 
 # Make Predictions
 mintime <- 0
@@ -1247,6 +1295,17 @@ if( config$Model$AIF$starttime == 0 ) {
 
 if( config$Model$AIF$endtime == Inf ) {
   config$Model$AIF$endtime <- NULL
+}
+
+# Clean up default weight values (don't save defaults to avoid clutter)
+if( !is.null(config$Model$AIF$weightscheme) && config$Model$AIF$weightscheme == 2 ) {
+  config$Model$AIF$weightscheme <- NULL
+}
+if( !is.null(config$Model$AIF$Method_weights) && config$Model$AIF$Method_weights == TRUE ) {
+  config$Model$AIF$Method_weights <- NULL  
+}
+if( !is.null(config$Model$AIF$taper_weights) && config$Model$AIF$taper_weights == TRUE ) {
+  config$Model$AIF$taper_weights <- NULL
 }
 ```
 
