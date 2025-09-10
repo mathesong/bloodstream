@@ -6,18 +6,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 `bloodstream` is an R package that provides a simplified and automated pipeline for processing BIDS blood data for PET imaging. It processes blood data and produces parameterised reports along with processed blood derivatives for pharmacokinetic modelling.
 
-The package supports two execution modes:
-- **Interactive Mode**: Shiny-based web interface for creating and modifying configuration files, with integrated pipeline execution
+The package supports multiple execution modes:
+- **Interactive Mode**: Shiny-based web interface for creating and modifying configuration files, with optional integrated pipeline execution
 - **Non-Interactive Mode**: Direct pipeline execution using pre-defined configuration files
+- **Standalone Config Mode**: Interactive configuration creation without requiring BIDS data
 
 ## Package Structure
 
 This is a standard R package with the following key components:
 
-- **Core Function**: `bloodstream()` in `R/run_bloodstream.R` is the main entry point
+- **Core Function**: `bloodstream()` in `R/run_bloodstream.R` is the main entry point with flexible parameter support
 - **Interactive Apps**: 
-  - `R/config_app.R` contains the Shiny configuration interface
-  - `R/launch_apps.R` provides app launcher functionality
+  - `R/config_app.R` contains the Shiny configuration interface with conditional pipeline execution
+  - `R/launch_apps.R` provides enhanced app launcher with multiple execution modes
 - **Modelling**: `R/modelling.R` contains model comparison functions for parent fraction analysis
 - **Plotting**: `R/plotting.R` contains visualization functions for different blood components
 - **Quality Control**: `R/qc.R` contains validation functions for blood processing results
@@ -50,6 +51,12 @@ devtools::build()
 
 # Generate documentation
 devtools::document()
+
+# Test different execution modes
+bloodstream("/path/to/study")  # Default config
+bloodstream("/path/to/study", "/path/to/config.json")  # Custom config
+launch_bloodstream_app()  # Standalone config creation
+launch_bloodstream_app(studypath = "/path/to/study")  # With data
 ```
 
 ### Docker Development
@@ -61,27 +68,41 @@ docker build -t mathesong/bloodstream:latest . --platform linux/amd64
 # Pull pre-built image
 docker pull mathesong/bloodstream:latest
 
-# Interactive mode (launches Shiny app on port 3838)
+# Interactive mode - standalone config creation
+docker run -p 3838:3838 \
+  --user $(id -u):$(id -g) \
+  -v /path/to/derivatives:/data/derivatives_dir:rw \
+  mathesong/bloodstream:latest --mode interactive
+
+# Interactive mode - with BIDS data (enables pipeline execution with config or linear interpolation)
 docker run -p 3838:3838 \
   --user $(id -u):$(id -g) \
   -v /path/to/bids:/data/bids_dir:ro \
-  -v /path/to/derivatives:/data/derivatives_dir \
+  -v /path/to/derivatives:/data/derivatives_dir:rw \
   mathesong/bloodstream:latest --mode interactive
 
-# Non-interactive mode with config file
+# Non-interactive mode with config file (fits models)
 docker run \
   --user $(id -u):$(id -g) \
   -v /path/to/bids:/data/bids_dir:ro \
-  -v /path/to/derivatives:/data/derivatives_dir \
+  -v /path/to/derivatives:/data/derivatives_dir:rw \
   -v /path/to/config.json:/config.json:ro \
   mathesong/bloodstream:latest
 
-# Non-interactive mode without config (uses defaults)
+# Non-interactive mode without config (linear interpolation)
 docker run \
   --user $(id -u):$(id -g) \
   -v /path/to/bids:/data/bids_dir:ro \
-  -v /path/to/derivatives:/data/derivatives_dir \
+  -v /path/to/derivatives:/data/derivatives_dir:rw \
   mathesong/bloodstream:latest
+
+# Custom analysis folder name with config (fits models)
+docker run \
+  --user $(id -u):$(id -g) \
+  -v /path/to/bids:/data/bids_dir:ro \
+  -v /path/to/derivatives:/data/derivatives_dir:rw \
+  -v /path/to/config.json:/config.json:ro \
+  mathesong/bloodstream:latest --analysis_foldername "pf_bpr_mod"
 ```
 
 ## Core Architecture
@@ -105,9 +126,9 @@ The package uses JSON configuration files to specify:
 - Model comparison criteria (AIC-based selection)
 
 ### Key Functions
-- `bloodstream()`: Main pipeline function
-- `bloodstream_config_app()`: Interactive Shiny configuration interface
-- `launch_bloodstream_app()`: App launcher with parameter handling
+- `bloodstream()`: Main pipeline function with flexible parameters (studypath, configpath, derivatives_dir, analysis_foldername, template_path)
+- `bloodstream_config_app()`: Interactive Shiny configuration interface with conditional pipeline execution
+- `launch_bloodstream_app()`: Enhanced app launcher supporting multiple execution modes (standalone, with study path, with separate directories)
 - `compare_aic_metabmodels_*()`: Model comparison for parent fraction
 - `plot_*_preds()`: Visualization functions for each blood component  
 - `qc_*()`: Quality control validation functions
@@ -136,10 +157,12 @@ The Docker implementation (`docker/dockerfile`) creates a BIDS app that:
 
 ### Docker Architecture Features
 - **User Permission Handling**: Proper UID/GID mapping to avoid permission issues
+- **Template Copying**: R Markdown templates copied to writable temp directory for permission compatibility
 - **Config Auto-Detection**: Automatically uses `/config.json` if mounted
-- **Analysis Folder Management**: Auto-names folders from config files or allows custom naming
+- **Analysis Folder Management**: Uses "Primary_Analysis" as default, allows custom naming via `--analysis_foldername`
 - **Port Exposure**: Exposes port 3838 for interactive Shiny interface
-- **Flexible Mounting**: Supports various directory mounting patterns
+- **Flexible Mounting**: Supports standalone config mode (derivatives only) and full mode (bids + derivatives)
+- **Mode-Based Validation**: Interactive mode requires derivatives_dir, non-interactive requires bids_dir
 
 ## Data Processing
 

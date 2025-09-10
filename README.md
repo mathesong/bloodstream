@@ -24,19 +24,42 @@ You can also use this package as a standalone dockerised BIDS app as described b
 
 ## Usage
 
+## Pipeline Workflow Summary
+
+| Step | R Usage | Docker Usage |
+|------|---------|--------------|
+| Run without config | `bloodstream(studypath)` → linear interpolation | `docker run ...` → linear interpolation |
+| Run with config | `bloodstream(studypath, configpath)` → fits models | `docker run -v my_config.json:/config.json ...` → fits models |
+| Launch config app (standalone) | `launch_bloodstream_app()` → design and save config | `docker run -p 3838:3838 -v /path/to/derivatives:/data/derivatives_dir:rw ... --mode interactive` → design and save config |
+| Launch config app (with data) | `launch_bloodstream_app(studypath = "/path/to/study")` → design, run, or linear interpolation | `docker run -p 3838:3838 -v /path/to/bids:/data/bids_dir:ro -v /path/to/derivatives:/data/derivatives_dir:rw ... --mode interactive` → design, run, or linear interpolation |
+| Run pipeline after config | Use saved config with `bloodstream()` | Use saved config with Docker run |
+
+
 ### R Package Usage
 
-In order to call `bloodstream`, you need to specify a `studypath` and a `configpath`.  
+The `bloodstream` function accepts several parameters:
 
-* The `studypath` is the location of the BIDS data, e.g. `../ds004230`  (relative or full paths are allowed).  
+* **`studypath`**: The location of the BIDS data, e.g. `../ds004230` (relative or full paths are allowed).
+* **`configpath`**: The path to the `bloodstream` configuration file, which specifies the modelling choices. If left blank or NULL, the blood data will be combined using linear interpolation only.
+* **`derivatives_dir`**: Path to derivatives directory. If NULL, uses `studypath/derivatives`.
+* **`analysis_foldername`**: Name for the analysis subfolder (default: "Primary_Analysis").
 
-* The `configpath` is the path to the `bloodstream` configuration file, which specifies the modelling choices which you will make as a user. If left blank, then the blood data will simply be combined using linear interpolation.
-
-The pipeline can then be called as follows:
+The pipeline can be called as follows:
 
 ``` r
 library(bloodstream)
+
+# Basic usage with default config (linear interpolation)
+bloodstream(studypath)
+
+# With custom config
 bloodstream(studypath, configpath)
+
+# With custom analysis folder name
+bloodstream(studypath, configpath, analysis_foldername = "my_analysis")
+
+# With separate derivatives directory
+bloodstream(studypath, configpath, derivatives_dir = "/path/to/derivatives")
 ```
 
 ### Interactive Configuration
@@ -45,29 +68,40 @@ You can launch the interactive configuration interface directly from R:
 
 ``` r
 library(bloodstream)
-# Launch interactive config app (always interactive)
+
+# Standalone config creation (no BIDS data needed)
 launch_bloodstream_app()
 
-# Launch with existing config to modify
-launch_bloodstream_app(config_file = "/path/to/existing/config.json")
+# With study directory (enables pipeline execution)
+launch_bloodstream_app(studypath = "/path/to/study")
+
+# With separate BIDS and derivatives directories
+launch_bloodstream_app(bids_dir = "/path/to/bids", derivatives_dir = "/path/to/derivatives")
+
+# Load existing config for modification
+launch_bloodstream_app(studypath = "/path/to/study", config_file = "/path/to/config.json")
+
+# Custom analysis folder name
+launch_bloodstream_app(studypath = "/path/to/study", analysis_foldername = "my_analysis")
 ```
 
 The interactive app allows you to:
 - Create and modify configuration files using a graphical interface
-- Load existing configurations for editing
+- Load existing configurations for editing  
 - Download configuration files
-- Run the bloodstream pipeline directly from the app
+- Run the bloodstream pipeline with custom configurations OR with linear interpolation (when BIDS directory is provided)
+- Work in standalone mode for config creation only (when no BIDS directory is provided)
 
 
 It will generate the following outputs:
 
-* A report showing all the code and functions used, as well as plots before and after modelling.
+* A report showing all the code and functions used, as well as plots before and after processing (either modeling or linear interpolation).
 
 ... and for all individual PET measurements, the following
 
-* Tabular tsv output (`*_inputfunction.tsv`) containing the estimated interpolated data which can be used for modelling.
-* JSON sidecar accompanying the tabular tsv data (`*_inputfunction.tsv`).
-* Model configuration JSON files, containing the models used and the AIF fit parameters if applicable (`*_config.json`).
+* Tabular tsv output (`*_inputfunction.tsv`) containing the estimated data (either model-fitted or linearly interpolated) which can be used for pharmacokinetic modelling.
+* JSON sidecar accompanying the tabular tsv data (`*_inputfunction.json`).
+* Model configuration JSON files, containing the models used and fit parameters if applicable (`*_config.json`).
 
 ## Docker
 
@@ -92,25 +126,32 @@ The Docker container supports both interactive and non-interactive modes:
 
 #### Interactive Mode (Configuration Interface)
 
-Launch the interactive configuration interface:
-
+**Standalone Config Creation** (no BIDS data needed):
 ```bash
-# Basic interactive mode
+# Create configs without BIDS data (requires derivatives directory for saving)
 docker run -p 3838:3838 \
   --user $(id -u):$(id -g) \
-  -v /path/to/bids:/data/bids_dir:ro \
-  -v /path/to/derivatives:/data/derivatives_dir \
+  -v /path/to/derivatives:/data/derivatives_dir:rw \
   mathesong/bloodstream:latest --mode interactive
 ```
 
-Load an existing config file into the interface:
+**Interactive Mode with BIDS Data** (enables pipeline execution):
+```bash
+# Full interactive mode with BIDS data (enables config creation, pipeline with config, or linear interpolation)
+docker run -p 3838:3838 \
+  --user $(id -u):$(id -g) \
+  -v /path/to/bids:/data/bids_dir:ro \
+  -v /path/to/derivatives:/data/derivatives_dir:rw \
+  mathesong/bloodstream:latest --mode interactive
+```
 
+**Load Existing Config**:
 ```bash
 # Interactive mode with existing config (auto-detected)
 docker run -p 3838:3838 \
   --user $(id -u):$(id -g) \
   -v /path/to/bids:/data/bids_dir:ro \
-  -v /path/to/derivatives:/data/derivatives_dir \
+  -v /path/to/derivatives:/data/derivatives_dir:rw \
   -v /path/to/my_config.json:/config.json:ro \
   mathesong/bloodstream:latest --mode interactive
 ```
@@ -119,25 +160,25 @@ Then open http://localhost:3838 in your browser to access the configuration inte
 
 #### Non-Interactive Mode (Direct Pipeline Execution)
 
-Run the pipeline with default settings:
+Run the pipeline with default settings (linear interpolation):
 
 ```bash
-# Non-interactive with default config
+# Non-interactive with default config (linear interpolation)
 docker run \
   --user $(id -u):$(id -g) \
   -v /path/to/bids:/data/bids_dir:ro \
-  -v /path/to/derivatives:/data/derivatives_dir \
+  -v /path/to/derivatives:/data/derivatives_dir:rw \
   mathesong/bloodstream:latest
 ```
 
-Run with a custom configuration file:
+Run with a custom configuration file (fits models):
 
 ```bash
-# Non-interactive with custom config (auto-detected)
+# Non-interactive with custom config (fits models, auto-detected)
 docker run \
   --user $(id -u):$(id -g) \
   -v /path/to/bids:/data/bids_dir:ro \
-  -v /path/to/derivatives:/data/derivatives_dir \
+  -v /path/to/derivatives:/data/derivatives_dir:rw \
   -v /path/to/my_config.json:/config.json:ro \
   mathesong/bloodstream:latest
 ```
@@ -145,14 +186,14 @@ docker run \
 Run with custom analysis folder name:
 
 ```bash
-# Non-interactive with custom config and folder name
+# Non-interactive with custom config and folder name (fits models)
 docker run \
   --user $(id -u):$(id -g) \
   -v /path/to/bids:/data/bids_dir:ro \
-  -v /path/to/derivatives:/data/derivatives_dir \
+  -v /path/to/derivatives:/data/derivatives_dir:rw \
   -v /path/to/my_config.json:/config.json:ro \
   mathesong/bloodstream:latest \
-  --analysis_foldername "MyAnalysis"
+  --analysis_foldername "pf_bpr_mod"
 ```
 
 ### Docker Command Line Options
@@ -162,9 +203,9 @@ docker run \
 
 ### Docker Mount Points
 
-- **BIDS Directory** (read-only): `/data/bids_dir` - Your BIDS dataset
-- **Derivatives Directory** (read-write): `/data/derivatives_dir` - Output location  
-- **Config File** (optional, read-only): `/config.json` - Auto-detected configuration file
+- **BIDS Directory** (read-only): `/data/bids_dir:ro` - Your BIDS dataset
+- **Derivatives Directory** (read-write): `/data/derivatives_dir:rw` - Output location  
+- **Config File** (optional, read-only): `/config.json:ro` - Auto-detected configuration file
 
 ### Analysis Folder Structure
 
@@ -172,10 +213,12 @@ Outputs are organized in analysis folders within `derivatives/bloodstream/`:
 
 ```
 derivatives/bloodstream/
-├── my_config/                     # Auto-named from config filename
-├── MyAnalysis/                    # Custom named via --analysis_foldername  
-└── default/                       # Default when no config specified
+├── Primary_Analysis/              # Default analysis folder name
+├── pf_bpr_mod/                    # Custom named via --analysis_foldername  
+└── another_analysis/              # Another custom analysis
 ```
+
+The default analysis folder name is "Primary_Analysis" (following kinfitr_app conventions). You can customize this using the `--analysis_foldername` parameter in Docker or the `analysis_foldername` parameter in R functions.
 
 Once complete, all outputs from the bloodstream analysis will be located in the `derivatives/bloodstream/<analysis_folder>/` directory. 
 

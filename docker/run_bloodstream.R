@@ -45,9 +45,16 @@ detect_mounted_directories <- function() {
   cat("Derivatives directory mounted:", derivatives_available, "\n")
   cat("\n")
   
-  # Validate at least one directory exists
-  if (!bids_available && !derivatives_available) {
-    stop("At least one of bids_dir or derivatives_dir must be mounted", call.=FALSE)
+  # For interactive mode, we need at least derivatives_dir (for saving config files)
+  # For non-interactive mode, we need at least bids_dir
+  if (opt$mode == "interactive") {
+    if (!derivatives_available) {
+      stop("Interactive mode requires derivatives_dir to be mounted for saving configuration files", call.=FALSE)
+    }
+  } else {
+    if (!bids_available) {
+      stop("Non-interactive mode requires bids_dir to be mounted", call.=FALSE)
+    }
   }
   
   # Set directory paths based on what's available
@@ -83,14 +90,8 @@ get_analysis_folder_name <- function(config_path, override_name = NULL) {
     return(override_name)
   }
   
-  if (!is.null(config_path)) {
-    # Extract filename without extension
-    config_name <- tools::file_path_sans_ext(basename(config_path))
-    return(config_name)
-  }
-  
-  # Default name
-  return("default")
+  # Use Primary_Analysis as default (like kinfitr_app)
+  return("Primary_Analysis")
 }
 
 analysis_folder <- get_analysis_folder_name(opt$config, opt$analysis_foldername)
@@ -114,11 +115,11 @@ if (opt$mode == "interactive") {
   }
   
   # Launch bloodstream config app interactively
-  bloodstream_config_app(
+  launch_bloodstream_app(
     bids_dir = dirs$bids_dir,
     derivatives_dir = dirs$derivatives_dir,
     config_file = config_for_app,
-    analysis_folder = analysis_folder,
+    analysis_foldername = analysis_folder,
     host = "0.0.0.0",  # Important for Docker
     port = 3838
   )
@@ -171,6 +172,7 @@ if (opt$mode == "interactive") {
   tryCatch({
     
     # Create a temporary directory for R Markdown processing
+    # This is crucial for Docker permission handling
     temp_dir <- file.path("/app", "temp_rmd")
     dir.create(temp_dir, showWarnings = FALSE, recursive = TRUE)
     
@@ -179,43 +181,14 @@ if (opt$mode == "interactive") {
     template_dest <- file.path(temp_dir, "template.rmd")
     file.copy(template_source, template_dest, overwrite = TRUE)
     
-    # Run bloodstream with custom template location
-    if (!is.null(config_to_use)) {
-      bloodstream_with_temp <- function(studypath, configpath) {
-        
-        studypath <- normalizePath(studypath, winslash = "/")
-        configpath <- normalizePath(configpath, winslash = "/")
-        
-        configname <- stringr::str_remove(basename(configpath), ".json")
-        
-        if( !stringr::str_detect(configname, "^config") ) {
-          stop("The name of the config file is required to start with 'config'")
-        }
-        
-        config_suffix <- stringr::str_match(configname, "^config_?-?(.*)")[,2]
-        
-        # Use the analysis directory as output location
-        output_path <- file.path(analysis_path, paste0("bloodstream_report", 
-                                                      ifelse(stringr::str_length(config_suffix) > 0,
-                                                             yes = paste0("_", config_suffix), no = ""), 
-                                                      ".html"))
-        
-        # Use the temporary template location
-        rmarkdown::render(
-          input = template_dest,
-          output_file = output_path,
-          params = list(configpath = configpath,
-                       studypath = studypath),
-          knit_root_dir = studypath
-        )
-      }
-      
-      result <- bloodstream_with_temp(bids_path, config_to_use)
-    } else {
-      # Use default config
-      default_config <- system.file("extdata", "config.json", package="bloodstream")
-      result <- bloodstream_with_temp(bids_path, default_config)
-    }
+    # Run bloodstream using the updated function with custom template location
+    result <- bloodstream(
+      studypath = bids_path, 
+      configpath = config_to_use,
+      derivatives_dir = derivatives_path,
+      analysis_foldername = analysis_folder,
+      template_path = template_dest  # Use the copied template
+    )
     
     cat("\nBloodstream pipeline completed successfully.\n")
     quit(status = 0)

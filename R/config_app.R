@@ -250,7 +250,22 @@ bloodstream_config_app <- function(bids_dir = NULL, derivatives_dir = NULL, conf
                                 class = "btn-success btn-lg"),
                     br(), br()
                 ),
-                div(id = "pipeline_output",
+            ),
+            
+            # Show message when in standalone mode (no BIDS directory)
+            conditionalPanel(
+              condition = "!output.bids_dir_available",
+              div(
+                h3("Config Creation Mode"),
+                p("No BIDS directory provided. You can create and download configuration files, but cannot run the pipeline directly from this interface."),
+                p("To run the pipeline, use the downloaded config with:", style = "font-family: monospace; background-color: #f8f9fa; padding: 10px; border-left: 3px solid #007bff;"),
+                tags$code("bloodstream(studypath, configpath)"), br(), br()
+              )
+            ),
+            
+            conditionalPanel(
+              condition = "output.bids_dir_available",
+              div(id = "pipeline_output",
                     conditionalPanel(
                       condition = "input.run_pipeline > 0",
                       h4("Pipeline Output:"),
@@ -451,7 +466,8 @@ bloodstream_config_app <- function(bids_dir = NULL, derivatives_dir = NULL, conf
         tryCatch({
           
           # Run the pipeline
-          result <- bloodstream(studypath = bids_dir, configpath = temp_config_file)
+          result <- bloodstream(studypath = bids_dir, configpath = temp_config_file, 
+                               derivatives_dir = derivatives_dir, analysis_foldername = analysis_folder)
           
           pipeline_result("Pipeline completed successfully!")
           pipeline_running(FALSE)
