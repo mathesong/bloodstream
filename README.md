@@ -127,8 +127,7 @@ docker pull mathesong/bloodstream:latest
 Alternatively, you can build the container locally using the file `docker/dockerfile`:
 
 ```bash
-cd docker
-docker build -t mathesong/bloodstream:latest . --platform linux/amd64
+docker build -f docker/dockerfile -t mathesong/bloodstream:latest . --platform linux/amd64
 ```
 
 ### Docker Usage

@@ -24,6 +24,7 @@
 #' @export
 bloodstream_config_app <- function(bids_dir = NULL, derivatives_dir = NULL, config_file = NULL, analysis_folder = "default", host = "127.0.0.1", port = 3838) {
   
+  
   # Function to generate new filename
   generate_new_filename <- function() {
     current_date <- as.character(as.Date(Sys.Date()))
@@ -266,11 +267,8 @@ bloodstream_config_app <- function(bids_dir = NULL, derivatives_dir = NULL, conf
             conditionalPanel(
               condition = "output.bids_dir_available",
               div(id = "pipeline_output",
-                    conditionalPanel(
-                      condition = "input.run_pipeline > 0",
-                      h4("Pipeline Output:"),
-                      verbatimTextOutput("pipeline_log")
-                    )
+                    h4("Pipeline Status:"),
+                    verbatimTextOutput("pipeline_log")
                 )
               )
             ),
@@ -469,7 +467,10 @@ bloodstream_config_app <- function(bids_dir = NULL, derivatives_dir = NULL, conf
           result <- bloodstream(bids_dir = bids_dir, configpath = temp_config_file, 
                                derivatives_dir = derivatives_dir, analysis_foldername = analysis_folder)
           
-          pipeline_result("Pipeline completed successfully!")
+          pipeline_result(paste0("Pipeline completed successfully!\n\n",
+                                 "Check the output to ensure that the fitting was successful.\n\n",
+                                 "You can close the web app to finish the process, or alternatively\n",
+                                 "edit the model fitting options and run it again if the first run was unsuccessful."))
           pipeline_running(FALSE)
           
           # Clean up temp file
@@ -486,6 +487,8 @@ bloodstream_config_app <- function(bids_dir = NULL, derivatives_dir = NULL, conf
     output$pipeline_log <- renderText({
       if (pipeline_running()) {
         "Pipeline is running..."
+      } else if (is.null(pipeline_result())) {
+        "Ready to run pipeline. Click 'Run Bloodstream Pipeline' to start."
       } else {
         pipeline_result()
       }
@@ -493,6 +496,12 @@ bloodstream_config_app <- function(bids_dir = NULL, derivatives_dir = NULL, conf
     
     # Display current config
     output$json_text <- renderText({ config_json() })
+    
+    # Handle session disconnect - stop app when browser is closed
+    session$onSessionEnded(function() {
+      cat("Browser session ended. Stopping app...\n")
+      stopApp()
+    })
   }
   
   # Run the application
@@ -509,5 +518,14 @@ bloodstream_config_app <- function(bids_dir = NULL, derivatives_dir = NULL, conf
   cat("Analysis folder:", analysis_folder, "\n")
   cat("App will be available at: http://", host, ":", port, "\n", sep = "")
   
-  shinyApp(ui = ui, server = server, options = list(host = host, port = port))
+  
+  # Create the application (following kinfitr_app pattern)
+  app <- shiny::shinyApp(ui = ui, server = server)
+  
+  cat("If running from within a docker container, open one of the following addresses in your web browser.\n")
+  cat("http://localhost:", port, "\n", sep = "")
+  
+  # Launch using runApp (more reliable in Docker)
+  cat("Launching app...\n")
+  shiny::runApp(app, host = host, port = port)
 }

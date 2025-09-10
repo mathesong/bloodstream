@@ -3,6 +3,7 @@ title: "Blood Processing Analysis"
 params:
   configpath: "../extdata/config_default.json"
   studypath: "../../../ds004230/"
+  derivatives_dir: "../../../ds004230/derivatives/"
   analysis_foldername: "Primary_Analysis"
 format:
   html:
@@ -10,6 +11,7 @@ format:
     toc-depth: 2
     code-fold: true
     code-tools: true
+    out-width: "100%"
 execute:
   warning: false
   message: false
@@ -41,7 +43,7 @@ theme_set(theme_light())
 
 
 
-## Modelling
+## Model Configuration
 
 Here are the contents of the config file with regard to which models will be fit to the data and how.
 
@@ -124,9 +126,8 @@ bidsdata$fulltitle <- attributes_to_title(bidsdata, all_attributes = T)
 
 ```{r}
 #| eval: !expr subsetting
-#| echo: !expr subsetting
-#| results: asis
 #| echo: false
+#| results: asis
 
 str_glue("## Data Subset
 
@@ -143,7 +144,6 @@ kable(config_subset)
 #| eval: !expr subsetting
 #| echo: !expr subsetting
 #| results: asis
-#| echo: false
 
 str_glue("The resulting list of blood measurements in the following analysis are as follows:")
 ```
@@ -251,6 +251,7 @@ Below is the raw blood data prior to any modelling. Inspect these plots to to ch
 ```{r initial-plotting}
 #| fig-height: 5
 #| fig-width: 11
+#| out-width: "100%"
 
 map2(bidsdata$blooddata, bidsdata$pet,
      ~plot_blooddata_extra(.x, .y)) 
@@ -288,9 +289,8 @@ pf_modelcompare$plot
 kable(pf_modelcompare$scores)
 ```
 
-```{r pf-modelcompare-description, eval=choose_best_model,echo=choose_best_model}
+```{r pf-modelcompare-description, eval=choose_best_model, echo=choose_best_model}
 #| results: asis
-#| echo: false
 
 str_glue("Based on the overall sum of the AIC scores, the winning model is `",
        pf_modelcompare$scores$Model[1], "`. The parent fraction curves ",
@@ -298,8 +298,7 @@ str_glue("Based on the overall sum of the AIC scores, the winning model is `",
 
 ```
 
-```{r pf-model-update, eval=choose_best_model,echo=choose_best_model}
-#| echo: false
+```{r pf-model-update, eval=choose_best_model, echo=choose_best_model}
 
 config$Model$ParentFraction$Method <- paste0("Fit Individually: ",
                                              pf_modelcompare$scores$Model[1])
@@ -1387,6 +1386,7 @@ str_glue("Below are shown the fits to all the blood data after modelling. Inspec
 ```{r final-plotting}
 #| fig-height: 5
 #| fig-width: 11
+#| out-width: "100%"
 #| eval: !expr final_plotting
 #| echo: !expr final_plotting
 
@@ -1417,7 +1417,7 @@ bidsdata <- bidsdata %>%
                                        "_recording-manual_blood.json",
                                        "_inputfunction.tsv"),
          output_folder = dirname(bloodfilename),
-         output_filename = paste0(params$studypath, "/derivatives/bloodstream/", 
+         output_filename = paste0(params$derivatives_dir, "/bloodstream/", 
                                   params$analysis_foldername, "/",
                                   output_folder, "/", output_basename)) %>% 
   # Blood json file
@@ -1557,8 +1557,8 @@ dataset_description <- list(
 )
 
 jsonlite::write_json(dataset_description, 
-                     path = paste0(params$studypath, 
-                                   "/derivatives/bloodstream/", params$analysis_foldername, 
+                     path = paste0(params$derivatives_dir, 
+                                   "/bloodstream/", params$analysis_foldername, 
                                    "/dataset_description.json"),
                      pretty = T)
 ```

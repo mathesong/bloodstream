@@ -49,11 +49,14 @@ detect_mounted_directories <- function() {
   # For non-interactive mode, we need at least bids_dir
   if (opt$mode == "interactive") {
     if (!derivatives_available) {
-      stop("Interactive mode requires derivatives_dir to be mounted for saving configuration files", call.=FALSE)
+      stop("Interactive mode requires derivatives_dir to be mounted with read-write access at /data/derivatives_dir", call.=FALSE)
     }
   } else {
     if (!bids_available) {
-      stop("Non-interactive mode requires bids_dir to be mounted", call.=FALSE)
+      stop("Non-interactive mode requires bids_dir to be mounted at /data/bids_dir", call.=FALSE)
+    }
+    if (!derivatives_available) {
+      stop("Non-interactive mode requires derivatives_dir to be mounted with read-write access at /data/derivatives_dir", call.=FALSE)
     }
   }
   
@@ -115,14 +118,22 @@ if (opt$mode == "interactive") {
   }
   
   # Launch bloodstream config app interactively
-  launch_bloodstream_app(
-    bids_dir = dirs$bids_dir,
-    derivatives_dir = dirs$derivatives_dir,
-    config_file = config_for_app,
-    analysis_foldername = analysis_folder,
-    host = "0.0.0.0",  # Important for Docker
-    port = 3838
-  )
+  cat("Attempting to launch Shiny app...\n")
+  tryCatch({
+    launch_bloodstream_app(
+      bids_dir = dirs$bids_dir,
+      derivatives_dir = dirs$derivatives_dir,
+      config_file = config_for_app,
+      analysis_foldername = analysis_folder,
+      host = "0.0.0.0",  # Important for Docker
+      port = 3838
+    )
+  }, error = function(e) {
+    cat("ERROR launching Shiny app:", e$message, "\n")
+    cat("Full error:\n")
+    print(e)
+    stop("Shiny app failed to launch")
+  })
   
   cat("App closed. Container exiting.\n")
   
@@ -171,9 +182,9 @@ if (opt$mode == "interactive") {
   # Execute bloodstream pipeline
   tryCatch({
     
-    # Create a temporary directory for R Markdown processing
+    # Create a temporary directory for Quarto template processing
     # This is crucial for Docker permission handling
-    temp_dir <- file.path("/app", "temp_rmd")
+    temp_dir <- file.path("/app", "temp_qmd")
     dir.create(temp_dir, showWarnings = FALSE, recursive = TRUE)
     
     # Copy the Quarto template to the writable temp directory
