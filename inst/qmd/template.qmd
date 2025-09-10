@@ -290,7 +290,7 @@ pf_modelcompare$plot
 kable(pf_modelcompare$scores)
 ```
 
-```{r pf-modelcompare-description, eval=choose_best_model, echo=false}
+```{r pf-modelcompare-description, eval=choose_best_model, echo=FALSE}
 #| results: asis
 
 str_glue("Based on the overall sum of the AIC scores, the winning model is `",
@@ -510,7 +510,7 @@ pmap(list(pf_data$pf, pf_data$preds, pf_data$pet), plot_pf_preds)
 ```
 
 
-```{r, eval=parametric_pf, echo=false}
+```{r, eval=parametric_pf, echo=FALSE}
 #| results: asis
 
 str_glue("The fitted parameters are shown below.")
@@ -640,7 +640,7 @@ pmap(list(pf_data$pf, pf_data$preds, pf_data$pet), plot_pf_preds)
 
 
 
-```{r, eval=fit_pf, echo=false}
+```{r, eval=fit_pf, echo=FALSE}
 #| results: asis
 
 str_glue("#### Inserting the predictions
@@ -667,7 +667,7 @@ if("pf_fit" %in% colnames(bidsdata)) {
 ```
 
 
-```{r pf-config_cleanup, echo=false}
+```{r pf-config_cleanup, echo=FALSE}
 # Cleaning up the config
 if( !do_gam ) {
   config$Model$ParentFraction$gam_k <- NULL
@@ -779,7 +779,7 @@ pmap(list(bpr_data$bpr, bpr_data$preds, bpr_data$pet), plot_bpr_preds)
 
 
 
-```{r, eval=parametric_bpr, echo=false}
+```{r, eval=parametric_bpr, echo=FALSE}
 #| results: asis
 
 str_glue("The fitted parameters are shown below.")
@@ -890,7 +890,7 @@ bpr_data <- inner_join(bpr_data,
 pmap(list(bpr_data$bpr, bpr_data$preds, bpr_data$pet), plot_bpr_preds)
 ```
 
-```{r, eval=fit_bpr, echo=false}
+```{r, eval=fit_bpr, echo=FALSE}
 #| results: asis
 
 str_glue("#### Inserting the predictions
@@ -924,7 +924,7 @@ if("bpr_fit" %in% colnames(bidsdata)) {
 ```
 
 
-```{r bpr-config_cleanup, echo=false}
+```{r bpr-config_cleanup, echo=FALSE}
 # Cleaning up the config
 if( !do_gam ) {
   config$Model$BPR$gam_k <- NULL
@@ -1172,7 +1172,7 @@ aif_data <- aif_data %>%
 
 
 
-```{r, eval=parametric_aif, echo=false}
+```{r, eval=parametric_aif, echo=FALSE}
 #| results: asis
 
 str_glue("The fitted parameters are shown below.")
@@ -1236,7 +1236,7 @@ aif_data <- aif_data %>%
 pmap(list(aif_data$aif, aif_data$preds, aif_data$pet), plot_aif_preds)
 ```
 
-```{r, eval=fit_aif, echo=false}
+```{r, eval=fit_aif, echo=FALSE}
 #| results: asis
 
 str_glue("#### Inserting the predictions
@@ -1276,7 +1276,7 @@ if("aif_fit" %in% colnames(bidsdata)) {
 ```
 
 
-```{r aif-config_cleanup, echo=false}
+```{r aif-config_cleanup, echo=FALSE}
 # Cleaning up the config
 if( !do_splines ) {
   config$Model$AIF$spline_kb <- NULL
@@ -1364,7 +1364,7 @@ wb_data <- wb_data %>%
 pmap(list(wb_data$wb, wb_data$preds, wb_data$pet), plot_wb_preds)
 ```
 
-```{r, eval=fit_wb, echo=false}
+```{r, eval=fit_wb, echo=FALSE}
 #| results: asis
 
 str_glue("#### Inserting the predictions
@@ -1405,7 +1405,7 @@ if("wb_fit" %in% colnames(bidsdata)) {
 ```
 
 
-```{r wb-config_cleanup, echo=false}
+```{r wb-config_cleanup, echo=FALSE}
 # Cleaning up the config
 if( !do_splines ) {
   config$Model$WholeBlood$spline_kb <- NULL
@@ -1437,7 +1437,7 @@ final_plotting <- any(
 all_interp <- !final_plotting
 ```
 
-```{r, eval=final_plotting, echo=false}
+```{r, eval=final_plotting, echo=FALSE}
 #| results: asis
 
 str_glue("Below are shown the fits to all the blood data after modelling. Inspect these plots to make sure that everything seems fine.")
@@ -1454,7 +1454,7 @@ map2(bidsdata$blooddata, bidsdata$pet,
      plot_blooddata_extra)
 ```
 
-```{r, eval=all_interp, echo=false}
+```{r, eval=all_interp, echo=FALSE}
 #| results: asis
 
 str_glue("Because no modelling was performed, the final plots are the same as the initial plots.")
@@ -1560,7 +1560,7 @@ walk(bidsdata$output_json_filename, ~write_json(output_description, path = .x,
 
 And finally, we include config files describing the models used for each step.
 
-```{r, eval=parametric_aif, echo=false}
+```{r, eval=parametric_aif, echo=FALSE}
 #| results: asis
 
 str_glue("Because we used a parametric model for the AIF, we will first add the AIF parameters to the output. These parameters are refer to Bq/mL and seconds.")
