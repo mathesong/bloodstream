@@ -8,19 +8,19 @@ launch_bloodstream_app(
   bids_dir = NULL,
   derivatives_dir = NULL,
   config_file = NULL,
-  analysis_folder = "default",
+  analysis_foldername = "Primary_Analysis",
   host = "127.0.0.1",
   port = 3838
 )
 }
 \arguments{
-\item{bids_dir}{Character string path to the BIDS directory (default: NULL)}
+\item{bids_dir}{Character string path to the BIDS directory (default: NULL). If provided without derivatives_dir, derivatives will be set to bids_dir/derivatives.}
 
 \item{derivatives_dir}{Character string path to the derivatives directory (default: NULL)}
 
 \item{config_file}{Character string path to existing config file to load (default: NULL)}
 
-\item{analysis_folder}{Character string name for analysis subfolder (default: "default")}
+\item{analysis_foldername}{Character string name for analysis subfolder (default: "Primary_Analysis")}
 
 \item{host}{Character string host address for the Shiny server (default: "127.0.0.1")}
 
@@ -31,8 +31,13 @@ Launch the bloodstream configuration interface
 }
 \details{
 This function launches the bloodstream configuration app, which allows users to:
-- Create configuration files for bloodstream analysis
+- Create configuration files for bloodstream analysis (can run standalone without any directories)
 - Define data subsets and modelling approaches
 - Load existing configurations from file
-- Optionally run the bloodstream pipeline directly from the interface
+- Run the bloodstream pipeline directly from the interface (when BIDS directory is available)
+
+Usage modes:
+- Standalone config creation: launch_bloodstream_app()
+- With BIDS directory: launch_bloodstream_app(bids_dir = "/path/to/bids")
+- With separate directories: launch_bloodstream_app(bids_dir = "/path/to/bids", derivatives_dir = "/path/to/derivatives")
 }

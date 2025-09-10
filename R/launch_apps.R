@@ -2,8 +2,7 @@
 #'
 #' @description Launch the bloodstream configuration interface
 #'
-#' @param studypath Character string path to the BIDS study directory (default: NULL). If provided without derivatives_dir, derivatives will be set to studypath/derivatives.
-#' @param bids_dir Character string path to the BIDS directory (default: NULL). Alternative to studypath for Docker compatibility.
+#' @param bids_dir Character string path to the BIDS directory (default: NULL). If provided without derivatives_dir, derivatives will be set to bids_dir/derivatives.
 #' @param derivatives_dir Character string path to the derivatives directory (default: NULL)
 #' @param config_file Character string path to existing config file to load (default: NULL)
 #' @param analysis_foldername Character string name for analysis subfolder (default: "Primary_Analysis")
@@ -19,20 +18,15 @@
 #' 
 #' Usage modes:
 #' - Standalone config creation: launch_bloodstream_app()
-#' - With study directory: launch_bloodstream_app(studypath = "/path/to/study")
+#' - With BIDS directory: launch_bloodstream_app(bids_dir = "/path/to/bids")
 #' - With separate directories: launch_bloodstream_app(bids_dir = "/path/to/bids", derivatives_dir = "/path/to/derivatives")
 #' 
 #' @export
-launch_bloodstream_app <- function(studypath = NULL, bids_dir = NULL, derivatives_dir = NULL, config_file = NULL, analysis_foldername = "Primary_Analysis", host = "127.0.0.1", port = 3838) {
+launch_bloodstream_app <- function(bids_dir = NULL, derivatives_dir = NULL, config_file = NULL, analysis_foldername = "Primary_Analysis", host = "127.0.0.1", port = 3838) {
   
-  # Handle parameter compatibility and derive paths
-  if (!is.null(studypath)) {
-    if (is.null(bids_dir)) {
-      bids_dir <- studypath
-    }
-    if (is.null(derivatives_dir)) {
-      derivatives_dir <- file.path(studypath, "derivatives")
-    }
+  # Derive derivatives directory if not provided
+  if (!is.null(bids_dir) && is.null(derivatives_dir)) {
+    derivatives_dir <- file.path(bids_dir, "derivatives")
   }
   
   # Print configuration

@@ -176,14 +176,14 @@ if (opt$mode == "interactive") {
     temp_dir <- file.path("/app", "temp_rmd")
     dir.create(temp_dir, showWarnings = FALSE, recursive = TRUE)
     
-    # Copy the R Markdown template to the writable temp directory
-    template_source <- system.file("rmd", "template.rmd", package = "bloodstream")
-    template_dest <- file.path(temp_dir, "template.rmd")
+    # Copy the Quarto template to the writable temp directory
+    template_source <- system.file("qmd", "template.qmd", package = "bloodstream")
+    template_dest <- file.path(temp_dir, "template.qmd")
     file.copy(template_source, template_dest, overwrite = TRUE)
     
     # Run bloodstream using the updated function with custom template location
     result <- bloodstream(
-      studypath = bids_path, 
+      bids_dir = bids_path, 
       configpath = config_to_use,
       derivatives_dir = derivatives_path,
       analysis_foldername = analysis_folder,

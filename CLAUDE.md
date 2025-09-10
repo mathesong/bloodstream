@@ -53,10 +53,10 @@ devtools::build()
 devtools::document()
 
 # Test different execution modes
-bloodstream("/path/to/study")  # Default config
-bloodstream("/path/to/study", "/path/to/config.json")  # Custom config
+bloodstream(bids_dir = "/path/to/study")  # Default config
+bloodstream(bids_dir = "/path/to/study", configpath = "/path/to/config.json")  # Custom config
 launch_bloodstream_app()  # Standalone config creation
-launch_bloodstream_app(studypath = "/path/to/study")  # With data
+launch_bloodstream_app(bids_dir = "/path/to/study")  # With data
 ```
 
 ### Docker Development
@@ -126,7 +126,7 @@ The package uses JSON configuration files to specify:
 - Model comparison criteria (AIC-based selection)
 
 ### Key Functions
-- `bloodstream()`: Main pipeline function with flexible parameters (studypath, configpath, derivatives_dir, analysis_foldername, template_path)
+- `bloodstream()`: Main pipeline function with flexible parameters (bids_dir, configpath, derivatives_dir, analysis_foldername, template_path)
 - `bloodstream_config_app()`: Interactive Shiny configuration interface with conditional pipeline execution
 - `launch_bloodstream_app()`: Enhanced app launcher supporting multiple execution modes (standalone, with study path, with separate directories)
 - `compare_aic_metabmodels_*()`: Model comparison for parent fraction

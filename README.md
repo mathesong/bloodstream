@@ -12,15 +12,14 @@ The goal of `bloodstream` is to provide a simplified and automated pipeline for 
 
 For a short introduction to processing blood data for PET, as well as tutorial for how to use `bloodstream`, I've recorded an [explainer video](https://www.youtube.com/watch?v=Kud6MWYPKxg), which should help you get started.
 
+**NOTE**: The previous web-based bloodstream configuration file definition tool has been deprecated in favour of running the configuration file definition locally using the package itself.
+
 ## Installation
 
-You can install the development version of bloodstream like so:
+`bloodstream` can be used in two ways:
 
-``` r
-remotes::install_github("mathesong/bloodstream")
-```
-
-You can also use this package as a standalone dockerised BIDS app as described below.
+- **[R Package Usage](#r-package-usage)**: Install and use directly in R
+- **[Docker Usage](#docker-usage)**: Use as a standalone containerized BIDS app without installing R or the package dependencies locally
 
 ## Usage
 
@@ -28,21 +27,33 @@ You can also use this package as a standalone dockerised BIDS app as described b
 
 | Step | R Usage | Docker Usage |
 |------|---------|--------------|
-| Run without config | `bloodstream(studypath)` → linear interpolation | `docker run ...` → linear interpolation |
-| Run with config | `bloodstream(studypath, configpath)` → fits models | `docker run -v my_config.json:/config.json ...` → fits models |
+| Run without config | `bloodstream(bids_dir)` → linear interpolation | `docker run ...` → linear interpolation |
+| Run with config | `bloodstream(bids_dir, configpath)` → fits models | `docker run -v my_config.json:/config.json ...` → fits models |
 | Launch config app (standalone) | `launch_bloodstream_app()` → design and save config | `docker run -p 3838:3838 -v /path/to/derivatives:/data/derivatives_dir:rw ... --mode interactive` → design and save config |
-| Launch config app (with data) | `launch_bloodstream_app(studypath = "/path/to/study")` → design, run, or linear interpolation | `docker run -p 3838:3838 -v /path/to/bids:/data/bids_dir:ro -v /path/to/derivatives:/data/derivatives_dir:rw ... --mode interactive` → design, run, or linear interpolation |
+| Launch config app (with data) | `launch_bloodstream_app(bids_dir = "/path/to/study")` → design, run, or linear interpolation | `docker run -p 3838:3838 -v /path/to/bids:/data/bids_dir:ro -v /path/to/derivatives:/data/derivatives_dir:rw ... --mode interactive` → design, run, or linear interpolation |
 | Run pipeline after config | Use saved config with `bloodstream()` | Use saved config with Docker run |
 
 
 ### R Package Usage
 
+#### Installation
+
+You can install the development version of bloodstream like so:
+
+``` r
+remotes::install_github("mathesong/bloodstream")
+```
+
+#### Function Parameters
+
 The `bloodstream` function accepts several parameters:
 
-* **`studypath`**: The location of the BIDS data, e.g. `../ds004230` (relative or full paths are allowed).
+* **`bids_dir`**: The location of the BIDS data, e.g. `../ds004230` (relative or full paths are allowed).
 * **`configpath`**: The path to the `bloodstream` configuration file, which specifies the modelling choices. If left blank or NULL, the blood data will be combined using linear interpolation only.
-* **`derivatives_dir`**: Path to derivatives directory. If NULL, uses `studypath/derivatives`.
+* **`derivatives_dir`**: Path to derivatives directory. If NULL, uses `bids_dir/derivatives`.
 * **`analysis_foldername`**: Name for the analysis subfolder (default: "Primary_Analysis").
+
+#### Pipeline Execution
 
 The pipeline can be called as follows:
 
@@ -50,19 +61,19 @@ The pipeline can be called as follows:
 library(bloodstream)
 
 # Basic usage with default config (linear interpolation)
-bloodstream(studypath)
+bloodstream(bids_dir)
 
 # With custom config
-bloodstream(studypath, configpath)
+bloodstream(bids_dir, configpath)
 
 # With custom analysis folder name
-bloodstream(studypath, configpath, analysis_foldername = "my_analysis")
+bloodstream(bids_dir, configpath, analysis_foldername = "my_analysis")
 
 # With separate derivatives directory
-bloodstream(studypath, configpath, derivatives_dir = "/path/to/derivatives")
+bloodstream(bids_dir, configpath, derivatives_dir = "/path/to/derivatives")
 ```
 
-### Interactive Configuration
+#### Interactive Configuration
 
 You can launch the interactive configuration interface directly from R:
 
@@ -72,17 +83,17 @@ library(bloodstream)
 # Standalone config creation (no BIDS data needed)
 launch_bloodstream_app()
 
-# With study directory (enables pipeline execution)
-launch_bloodstream_app(studypath = "/path/to/study")
+# With BIDS directory (enables pipeline execution, auto-derives derivatives)
+launch_bloodstream_app(bids_dir = "/path/to/study")
 
 # With separate BIDS and derivatives directories
-launch_bloodstream_app(bids_dir = "/path/to/bids", derivatives_dir = "/path/to/derivatives")
+launch_bloodstream_app(bids_dir = "/path/to/study", derivatives_dir = "/path/to/derivatives")
 
 # Load existing config for modification
-launch_bloodstream_app(studypath = "/path/to/study", config_file = "/path/to/config.json")
+launch_bloodstream_app(bids_dir = "/path/to/study", config_file = "/path/to/config.json")
 
 # Custom analysis folder name
-launch_bloodstream_app(studypath = "/path/to/study", analysis_foldername = "my_analysis")
+launch_bloodstream_app(bids_dir = "/path/to/study", analysis_foldername = "my_analysis")
 ```
 
 The interactive app allows you to:

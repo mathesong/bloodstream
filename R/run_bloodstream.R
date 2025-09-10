@@ -1,8 +1,8 @@
 #' Run the bloodstream pipeline
 #'
-#' @param studypath The path to the BIDS study folder.
+#' @param bids_dir The path to the BIDS study folder.
 #' @param configpath The path to the config file.
-#' @param derivatives_dir The path to the derivatives directory. If NULL, uses studypath/derivatives.
+#' @param derivatives_dir The path to the derivatives directory. If NULL, uses bids_dir/derivatives.
 #' @param analysis_foldername The name for the analysis subfolder (default: "Primary_Analysis").
 #' @param template_path The path to the R Markdown template. If NULL, uses package default.
 #'
@@ -11,14 +11,14 @@
 #'
 #' @examples
 #' \dontrun{
-#' bloodstream(studypath, configpath)
-#' bloodstream(studypath, configpath, analysis_foldername = "my_analysis")
+#' bloodstream(bids_dir, configpath)
+#' bloodstream(bids_dir, configpath, analysis_foldername = "my_analysis")
 #' }
-bloodstream <- function(studypath, configpath = NULL, derivatives_dir = NULL, analysis_foldername = "Primary_Analysis", template_path = NULL) {
+bloodstream <- function(bids_dir, configpath = NULL, derivatives_dir = NULL, analysis_foldername = "Primary_Analysis", template_path = NULL) {
 
   # Validation
-  if( is.null(studypath) || !dir.exists(studypath) ) {
-    stop("studypath must be provided and must exist", call. = FALSE)
+  if( is.null(bids_dir) || !dir.exists(bids_dir) ) {
+    stop("bids_dir must be provided and must exist", call. = FALSE)
   }
   
   if( is.null(configpath) ) {
@@ -29,12 +29,12 @@ bloodstream <- function(studypath, configpath = NULL, derivatives_dir = NULL, an
     stop("Config file does not exist: ", configpath, call. = FALSE)
   }
 
-  studypath <- normalizePath(studypath, winslash = "/")
+  bids_dir <- normalizePath(bids_dir, winslash = "/")
   configpath <- normalizePath(configpath, winslash = "/")
 
   # Set up derivatives directory
   if( is.null(derivatives_dir) ) {
-    derivatives_dir <- file.path(studypath, "derivatives")
+    derivatives_dir <- file.path(bids_dir, "derivatives")
   }
   derivatives_dir <- normalizePath(derivatives_dir, winslash = "/", mustWork = FALSE)
 
@@ -47,32 +47,19 @@ bloodstream <- function(studypath, configpath = NULL, derivatives_dir = NULL, an
   analysis_path <- file.path(bloodstream_dir, analysis_foldername)
   dir.create(analysis_path, showWarnings = FALSE)
 
-  # quarto::quarto_render(
-  #   input = paste0(system.file(package = "bloodstream"),
-  #                  "/qmd/template.qmd"),
-  #   output_file = paste0(studypath,
-  #                        "/derivatives/bloodstream",
-  #                        config_suffix, "/",
-  #                        "bloodstream_report_config-",
-  #                        configname, ".html"),
-  #   execute_params = list(configpath = configpath,
-  #                         studypath = studypath),
-  #   execute_dir = studypath
-  # )
-
-
   # Determine template path
   if( is.null(template_path) ) {
-    template_path <- paste0(system.file(package = "bloodstream"), "/rmd/template.rmd")
+    template_path <- paste0(system.file(package = "bloodstream"), "/qmd/template.qmd")
   }
   
-  rmarkdown::render(
+  quarto::quarto_render(
     input = template_path,
     output_file = file.path(analysis_path, 
                            paste0("bloodstream_report_", analysis_foldername, ".html")),
-    params = list(configpath = configpath,
-                          studypath = studypath),
-    knit_root_dir = studypath
+    execute_params = list(configpath = configpath,
+                         studypath = bids_dir,
+                         analysis_foldername = analysis_foldername),
+    execute_dir = bids_dir
   )
 
 

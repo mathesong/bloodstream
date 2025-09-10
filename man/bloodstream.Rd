@@ -4,12 +4,24 @@
 \alias{bloodstream}
 \title{Run the bloodstream pipeline}
 \usage{
-bloodstream(studypath, configpath = NULL)
+bloodstream(
+  bids_dir,
+  configpath = NULL,
+  derivatives_dir = NULL,
+  analysis_foldername = "Primary_Analysis",
+  template_path = NULL
+)
 }
 \arguments{
-\item{studypath}{The path to the BIDS study folder.}
+\item{bids_dir}{The path to the BIDS study folder.}
 
 \item{configpath}{The path to the config file.}
+
+\item{derivatives_dir}{The path to the derivatives directory. If NULL, uses bids_dir/derivatives.}
+
+\item{analysis_foldername}{The name for the analysis subfolder (default: "Primary_Analysis").}
+
+\item{template_path}{The path to the R Markdown template. If NULL, uses package default.}
 }
 \value{
 The derivatives files, and report will be produced in the study folder.
@@ -19,6 +31,7 @@ Run the bloodstream pipeline
 }
 \examples{
 \dontrun{
-bloodstream(studypath, configpath)
+bloodstream(bids_dir, configpath)
+bloodstream(bids_dir, configpath, analysis_foldername = "my_analysis")
 }
 }

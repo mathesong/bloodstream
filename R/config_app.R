@@ -121,7 +121,7 @@ bloodstream_config_app <- function(bids_dir = NULL, derivatives_dir = NULL, conf
             ),
             textInput(inputId = "pf_hgam_opt",
                       label = "HGAM Smooth Formula",
-                      value = ""),
+                      value = "s(log(time), k=8) + s(log(time), pet, bs='fs', k=5)"),
             p(div(HTML("<em>Use any of the subsetting attributes, as well as measurement (pet).  ",
                        "Note: it is recommended to log-transform time for best results. e.g. s(log(time), k=8) + s(log(time), pet, bs='fs', k=5) </em>")))
           ),
@@ -162,7 +162,7 @@ bloodstream_config_app <- function(bids_dir = NULL, derivatives_dir = NULL, conf
             ),
             textInput(inputId = "bpr_hgam_opt",
                       label = "HGAM Smooth Formula",
-                      value = ""),
+                      value = "s(time, k=8) + s(time, pet, bs='fs', k=5)"),
             p(div(HTML("<em>Use any of the subsetting attributes, as well as measurement (pet), e.g. s(time, k=8) + s(time, pet, bs='fs', k=5)</em>")))
           ),
           
@@ -466,7 +466,7 @@ bloodstream_config_app <- function(bids_dir = NULL, derivatives_dir = NULL, conf
         tryCatch({
           
           # Run the pipeline
-          result <- bloodstream(studypath = bids_dir, configpath = temp_config_file, 
+          result <- bloodstream(bids_dir = bids_dir, configpath = temp_config_file, 
                                derivatives_dir = derivatives_dir, analysis_foldername = analysis_folder)
           
           pipeline_result("Pipeline completed successfully!")
