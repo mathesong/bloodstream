@@ -225,6 +225,13 @@ bloodstream_config_app <- function(bids_dir = NULL, derivatives_dir = NULL, conf
                           label = "Taper weights",
                           value = TRUE),
             div(p("Gradually trades off between continuous and discrete samples after peak"), 
+                style = "font-size:12px; margin-left:20px; margin-top:-10px;"),
+            br(),
+            
+            checkboxInput(inputId = "aif_exclude_manual_during_continuous",
+                          label = "Exclude manual samples collected during continuous sampling",
+                          value = FALSE),
+            div(p("Removes discrete (manual) samples that occur before the last continuous sample for calculating the AIF curve"), 
                 style = "font-size:12px; margin-left:20px; margin-top:-10px;")
           ),
           
@@ -244,6 +251,11 @@ bloodstream_config_app <- function(bids_dir = NULL, derivatives_dir = NULL, conf
             checkboxInput(inputId = "wb_dispcor",
                           label = "Perform dispersion correction on autosampler samples?",
                           value = FALSE),
+            checkboxInput(inputId = "wb_exclude_manual_during_continuous",
+                          label = "Exclude manual samples collected during continuous sampling",
+                          value = FALSE),
+            div(p("Removes discrete (manual) samples that occur before the last continuous sample for calculating the whole blood curve"), 
+                style = "font-size:12px; margin-left:20px; margin-top:-10px;"),
             h4("Time subsetting"),
             div(style="display:inline-block",textInput(inputId="wb_starttime", label="from (min)", value = 0)),
             div(style="display:inline-block",textInput(inputId="wb_endtime", label="to (min)", value = Inf)),
@@ -355,10 +367,12 @@ bloodstream_config_app <- function(bids_dir = NULL, derivatives_dir = NULL, conf
         updateSelectInput(session, "aif_weightscheme", selected = config_data$Model$AIF$weightscheme %||% 2)
         updateCheckboxInput(session, "aif_method_weights", value = config_data$Model$AIF$Method_weights %||% TRUE)
         updateCheckboxInput(session, "aif_taper_weights", value = config_data$Model$AIF$taper_weights %||% TRUE)
+        updateCheckboxInput(session, "aif_exclude_manual_during_continuous", value = config_data$Model$AIF$exclude_manual_during_continuous %||% FALSE)
         
         # Update Whole Blood inputs
         updateSelectInput(session, "wb_model", selected = config_data$Model$WholeBlood$Method %||% "Interpolation")
         updateCheckboxInput(session, "wb_dispcor", value = config_data$Model$WholeBlood$dispcor %||% FALSE)
+        updateCheckboxInput(session, "wb_exclude_manual_during_continuous", value = config_data$Model$WholeBlood$exclude_manual_during_continuous %||% FALSE)
         updateTextInput(session, "wb_starttime", value = as.character(config_data$Model$WholeBlood$starttime %||% 0))
         updateTextInput(session, "wb_endtime", value = as.character(config_data$Model$WholeBlood$endtime %||% Inf))
         updateTextInput(session, "wb_kb", value = config_data$Model$WholeBlood$spline_kb %||% "")
@@ -414,12 +428,14 @@ bloodstream_config_app <- function(bids_dir = NULL, derivatives_dir = NULL, conf
         spline_ka_a = input$aif_ka_a,
         weightscheme = as.numeric(input$aif_weightscheme),
         Method_weights = input$aif_method_weights,
-        taper_weights = input$aif_taper_weights
+        taper_weights = input$aif_taper_weights,
+        exclude_manual_during_continuous = input$aif_exclude_manual_during_continuous
       )
       
       WholeBlood <- list(
         Method = input$wb_model,
         dispcor = input$wb_dispcor,
+        exclude_manual_during_continuous = input$wb_exclude_manual_during_continuous,
         starttime = as.numeric(input$wb_starttime),
         endtime  = as.numeric(input$wb_endtime),
         spline_kb = input$wb_kb,

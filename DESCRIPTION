@@ -1,7 +1,7 @@
 Package: bloodstream
 Type: Package
 Title: PET BIDS Blood Processing Pipeline
-Version: 0.1.0
+Version: 0.2.0
 Author: Granville J. Matheson
 Maintainer: Granville J. Matheson <mathesong@gmail.com>
 Description: bloodstream is a blood processing pipeline which 

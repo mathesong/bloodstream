@@ -1060,6 +1060,34 @@ fit_aif <- config$Model$AIF$Method != "Interpolation"
 
 parametric_aif <- any(do_triexp, do_feng, do_fengconv)
 nonparam_aif <- do_splines
+
+exclude_early_manual_aif <- !is.null(config$Model$AIF$exclude_manual_during_continuous) && 
+                            config$Model$AIF$exclude_manual_during_continuous
+```
+
+```{r aif-exclude-manual}
+#| echo: !expr exclude_early_manual_aif
+#| eval: !expr exclude_early_manual_aif
+
+# Filter out manual samples collected during continuous sampling for AIF
+bidsdata <- bidsdata %>%
+  mutate(blooddata = map(blooddata, function(bd) {
+    aif_data <- bd_extract(bd, output="AIF")
+    
+    # Find the latest continuous sampling time point
+    continuous_data <- aif_data %>% filter(Method == "Continuous")
+    if (nrow(continuous_data) > 0) {
+      max_continuous_time <- max(continuous_data$time, na.rm = TRUE)
+      
+      # Filter out discrete samples before the last continuous sample
+      aif_data_filtered <- aif_data %>%
+        filter(!(Method == "Discrete" & time <= max_continuous_time))
+      
+      # Update the blooddata object with filtered AIF
+      bd <- bd_addfitted(bd, aif_data_filtered, modelname = "AIF")
+    }
+    return(bd)
+  }))
 ```
 
 ```{r aif-triexp}
@@ -1071,9 +1099,20 @@ nonparam_aif <- do_splines
 # Extract Data
 aif_data <- bidsdata %>%
   mutate(aif = map(blooddata, ~bd_extract(.x, output="AIF"))) %>%
-  mutate(aif = map(aif, ~.x %>%
-           filter(time >= as.numeric(config$Model$AIF$starttime)*60) %>%
-           filter(time <= as.numeric(config$Model$AIF$endtime)*60))) %>%
+  mutate(aif = map(aif, ~{
+    # Filter out manual samples during continuous sampling if enabled
+    if (exclude_early_manual_aif) {
+      continuous_data <- .x %>% filter(Method == "Continuous")
+      if (nrow(continuous_data) > 0) {
+        max_continuous_time <- max(continuous_data$time, na.rm = TRUE)
+        .x <- .x %>% filter(!(Method == "Discrete" & time <= max_continuous_time))
+      }
+    }
+    # Apply time filtering
+    .x %>%
+      filter(time >= as.numeric(config$Model$AIF$starttime)*60) %>%
+      filter(time <= as.numeric(config$Model$AIF$endtime)*60)
+  })) %>%
   select(pet, aif)
 
 # Fit Model
@@ -1129,9 +1168,20 @@ aif_data <- aif_data %>%
 # Extract Data
 aif_data <- bidsdata %>%
   mutate(aif = map(blooddata, ~bd_extract(.x, output="AIF"))) %>%
-  mutate(aif = map(aif, ~.x %>%
-           filter(time >= as.numeric(config$Model$AIF$starttime)*60) %>%
-           filter(time <= as.numeric(config$Model$AIF$endtime)*60))) %>%
+  mutate(aif = map(aif, ~{
+    # Filter out manual samples during continuous sampling if enabled
+    if (exclude_early_manual_aif) {
+      continuous_data <- .x %>% filter(Method == "Continuous")
+      if (nrow(continuous_data) > 0) {
+        max_continuous_time <- max(continuous_data$time, na.rm = TRUE)
+        .x <- .x %>% filter(!(Method == "Discrete" & time <= max_continuous_time))
+      }
+    }
+    # Apply time filtering
+    .x %>%
+      filter(time >= as.numeric(config$Model$AIF$starttime)*60) %>%
+      filter(time <= as.numeric(config$Model$AIF$endtime)*60)
+  })) %>%
   select(pet, aif)
 
 # Fit Model
@@ -1186,9 +1236,20 @@ aif_data <- aif_data %>%
 # Extract Data
 aif_data <- bidsdata %>%
   mutate(aif = map(blooddata, ~bd_extract(.x, output="AIF"))) %>%
-  mutate(aif = map(aif, ~.x %>%
-           filter(time >= as.numeric(config$Model$AIF$starttime)*60) %>%
-           filter(time <= as.numeric(config$Model$AIF$endtime)*60))) %>%
+  mutate(aif = map(aif, ~{
+    # Filter out manual samples during continuous sampling if enabled
+    if (exclude_early_manual_aif) {
+      continuous_data <- .x %>% filter(Method == "Continuous")
+      if (nrow(continuous_data) > 0) {
+        max_continuous_time <- max(continuous_data$time, na.rm = TRUE)
+        .x <- .x %>% filter(!(Method == "Discrete" & time <= max_continuous_time))
+      }
+    }
+    # Apply time filtering
+    .x %>%
+      filter(time >= as.numeric(config$Model$AIF$starttime)*60) %>%
+      filter(time <= as.numeric(config$Model$AIF$endtime)*60)
+  })) %>%
   select(pet, aif)
 
 # Fit Model
@@ -1280,9 +1341,20 @@ aif_pars %>%
 # Extract Data
 aif_data <- bidsdata %>%
   mutate(aif = map(blooddata, ~bd_extract(.x, output="AIF"))) %>%
-  mutate(aif = map(aif, ~.x %>%
-           filter(time >= as.numeric(config$Model$AIF$starttime)*60) %>%
-           filter(time <= as.numeric(config$Model$AIF$endtime)*60))) %>%
+  mutate(aif = map(aif, ~{
+    # Filter out manual samples during continuous sampling if enabled
+    if (exclude_early_manual_aif) {
+      continuous_data <- .x %>% filter(Method == "Continuous")
+      if (nrow(continuous_data) > 0) {
+        max_continuous_time <- max(continuous_data$time, na.rm = TRUE)
+        .x <- .x %>% filter(!(Method == "Discrete" & time <= max_continuous_time))
+      }
+    }
+    # Apply time filtering
+    .x %>%
+      filter(time >= as.numeric(config$Model$AIF$starttime)*60) %>%
+      filter(time <= as.numeric(config$Model$AIF$endtime)*60)
+  })) %>%
   select(pet, aif)
 
 # Fit Model
@@ -1414,6 +1486,34 @@ The selected modelling approach for modelling the whole blood (WB) data is `r co
 do_splines <-(config$Model$WholeBlood$Method=="Fit Individually: Splines")
 
 fit_wb <- config$Model$WholeBlood$Method != "Interpolation"
+
+exclude_early_manual_wb <- !is.null(config$Model$WholeBlood$exclude_manual_during_continuous) && 
+                           config$Model$WholeBlood$exclude_manual_during_continuous
+```
+
+```{r wb-exclude-manual}
+#| echo: !expr exclude_early_manual_wb
+#| eval: !expr exclude_early_manual_wb
+
+# Filter out manual samples collected during continuous sampling for Whole Blood
+bidsdata <- bidsdata %>%
+  mutate(blooddata = map(blooddata, function(bd) {
+    wb_data <- bd_extract(bd, output="Blood")
+    
+    # Find the latest continuous sampling time point
+    continuous_data <- wb_data %>% filter(Method == "Continuous")
+    if (nrow(continuous_data) > 0) {
+      max_continuous_time <- max(continuous_data$time, na.rm = TRUE)
+      
+      # Filter out discrete samples before the last continuous sample
+      wb_data_filtered <- wb_data %>%
+        filter(!(Method == "Discrete" & time <= max_continuous_time))
+      
+      # Update the blooddata object with filtered whole blood
+      bd <- bd_addfitted(bd, wb_data_filtered, modelname = "Blood")
+    }
+    return(bd)
+  }))
 ```
 
 ```{r wb-splines}
@@ -1425,9 +1525,20 @@ fit_wb <- config$Model$WholeBlood$Method != "Interpolation"
 # Extract Data
 wb_data <- bidsdata %>%
   mutate(wb = map(blooddata, ~bd_extract(.x, output="Blood"))) %>%
-  mutate(wb = map(wb, ~.x %>%
-           filter(time >= as.numeric(config$Model$WholeBlood$starttime)*60) %>%
-           filter(time <= as.numeric(config$Model$WholeBlood$endtime)*60))) %>%
+  mutate(wb = map(wb, ~{
+    # Filter out manual samples during continuous sampling if enabled
+    if (exclude_early_manual_wb) {
+      continuous_data <- .x %>% filter(Method == "Continuous")
+      if (nrow(continuous_data) > 0) {
+        max_continuous_time <- max(continuous_data$time, na.rm = TRUE)
+        .x <- .x %>% filter(!(Method == "Discrete" & time <= max_continuous_time))
+      }
+    }
+    # Apply time filtering
+    .x %>%
+      filter(time >= as.numeric(config$Model$WholeBlood$starttime)*60) %>%
+      filter(time <= as.numeric(config$Model$WholeBlood$endtime)*60)
+  })) %>%
   select(pet, wb)
 
 # Fit Model
@@ -1733,6 +1844,14 @@ jsonlite::write_json(dataset_description,
                      pretty = T)
 ```
 
+
+# Methods
+
+```{r methods-boilerplate}
+#| results: asis
+methods_text <- generate_methods_boilerplate(config)
+str_glue(methods_text)
+```
 
 # Session Info
 

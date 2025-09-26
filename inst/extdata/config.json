@@ -34,11 +34,16 @@
       "inftime": ["NA"],
       "spline_kb": [""],
       "spline_ka_m": [""],
-      "spline_ka_a": [""]
+      "spline_ka_a": [""],
+      "weightscheme": [2],
+      "Method_weights": [true],
+      "taper_weights": [true],
+      "exclude_manual_during_continuous": [false]
     },
     "WholeBlood": {
       "Method": ["Interpolation"],
       "dispcor": [false],
+      "exclude_manual_during_continuous": [false],
       "starttime": [0],
       "endtime": ["Inf"],
       "spline_kb": [""],
