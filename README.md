@@ -140,7 +140,6 @@ The Docker container supports both interactive and non-interactive modes:
 ```bash
 # Create configs without BIDS data (requires derivatives directory for saving)
 docker run -p 3838:3838 \
-  --user $(id -u):$(id -g) \
   -v /path/to/derivatives:/data/derivatives_dir:rw \
   mathesong/bloodstream:latest --mode interactive
 ```
@@ -149,8 +148,7 @@ docker run -p 3838:3838 \
 ```bash
 # Full interactive mode with BIDS data (enables config creation, pipeline with config, or linear interpolation)
 docker run -p 3838:3838 \
-  --user $(id -u):$(id -g) \
-  -v /path/to/bids:/data/bids_dir:ro \
+  -v /path/to/bids/dir:/data/bids_dir:ro \
   -v /path/to/derivatives:/data/derivatives_dir:rw \
   mathesong/bloodstream:latest --mode interactive
 ```
@@ -159,8 +157,7 @@ docker run -p 3838:3838 \
 ```bash
 # Interactive mode with existing config (auto-detected)
 docker run -p 3838:3838 \
-  --user $(id -u):$(id -g) \
-  -v /path/to/bids:/data/bids_dir:ro \
+  -v /path/to/bids/dir:/data/bids_dir:ro \
   -v /path/to/derivatives:/data/derivatives_dir:rw \
   -v /path/to/my_config.json:/config.json:ro \
   mathesong/bloodstream:latest --mode interactive
@@ -175,8 +172,7 @@ Run the pipeline with default settings (linear interpolation):
 ```bash
 # Non-interactive with default config (linear interpolation)
 docker run \
-  --user $(id -u):$(id -g) \
-  -v /path/to/bids:/data/bids_dir:ro \
+  -v /path/to/bids/dir:/data/bids_dir:ro \
   -v /path/to/derivatives:/data/derivatives_dir:rw \
   mathesong/bloodstream:latest
 ```
@@ -186,8 +182,7 @@ Run with a custom configuration file (fits models):
 ```bash
 # Non-interactive with custom config (fits models, auto-detected)
 docker run \
-  --user $(id -u):$(id -g) \
-  -v /path/to/bids:/data/bids_dir:ro \
+  -v /path/to/bids/dir:/data/bids_dir:ro \
   -v /path/to/derivatives:/data/derivatives_dir:rw \
   -v /path/to/my_config.json:/config.json:ro \
   mathesong/bloodstream:latest
@@ -198,18 +193,50 @@ Run with custom analysis folder name:
 ```bash
 # Non-interactive with custom config and folder name (fits models)
 docker run \
-  --user $(id -u):$(id -g) \
-  -v /path/to/bids:/data/bids_dir:ro \
+  -v /path/to/bids/dir:/data/bids_dir:ro \
   -v /path/to/derivatives:/data/derivatives_dir:rw \
   -v /path/to/my_config.json:/config.json:ro \
   mathesong/bloodstream:latest \
-  --analysis_foldername "pf_bpr_mod"
+  --analysis_foldername "Model_AIF"
+```
+
+Below are two examples of running the app for a real folder:
+
+```bash
+# Interactive mode with real paths and custom analysis folder
+docker run -p 3838:3838 \
+  -v /home/granville/Repositories/OpenNeuro/ds004869/:/data/bids_dir:ro \
+  -v /home/granville/Repositories/OpenNeuro/ds004869/derivatives/:/data/derivatives_dir:rw \
+  mathesong/bloodstream:latest --mode interactive --analysis_foldername Secondary_Analysis
+  
+
+docker run \
+  -v /home/granville/Repositories/OpenNeuro/ds004869/:/data/bids_dir:ro \
+  -v /home/granville/Repositories/OpenNeuro/ds004869/derivatives/:/data/derivatives_dir:rw \
+  -v /home/granville/Downloads/config_test.json:/config.json:ro \
+  mathesong/bloodstream:latest --analysis_foldername Tertiary_Analysis
 ```
 
 ### Docker Command Line Options
 
 - `--mode`: Execution mode (`interactive` or `non-interactive` [default])
 - `--analysis_foldername`: Custom name for analysis subfolder (overrides config filename)
+
+### Docker File Permissions Note
+
+On Linux systems, if you encounter permission issues where output files are owned by root, you have two options:
+
+1. **Add the user flag** to run the container with your user ID:
+   ```bash
+   docker run --user $(id -u):$(id -g) \
+     # ... rest of your docker command
+   ```
+
+2. **Fix permissions afterward** using chown:
+   ```bash
+   sudo chown -R $(id -u):$(id -g) /path/to/derivatives
+   ```
+
 
 ### Docker Mount Points
 
@@ -219,7 +246,7 @@ docker run \
 
 ### Analysis Folder Structure
 
-Outputs are organized in analysis folders within `derivatives/bloodstream/`:
+Outputs are organised in analysis folders within `derivatives/bloodstream/`:
 
 ```
 derivatives/bloodstream/
@@ -228,7 +255,7 @@ derivatives/bloodstream/
 └── another_analysis/              # Another custom analysis
 ```
 
-The default analysis folder name is "Primary_Analysis" (following kinfitr_app conventions). You can customize this using the `--analysis_foldername` parameter in Docker or the `analysis_foldername` parameter in R functions.
+The default analysis folder name is "Primary_Analysis". You can customise this using the `--analysis_foldername` parameter in Docker or the `analysis_foldername` parameter in R functions.
 
 Once complete, all outputs from the bloodstream analysis will be located in the `derivatives/bloodstream/<analysis_folder>/` directory. 
 

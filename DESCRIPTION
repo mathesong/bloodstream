@@ -19,6 +19,7 @@ Imports:
     gratia,
     jsonlite,
     kinfitr (>= 0.7.1),
+    later,
     optparse,
     purrr,
     quarto,

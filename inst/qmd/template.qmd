@@ -91,6 +91,13 @@ measurements <- bids_parse_files(params$studypath) %>%
   mutate(petinfo = map(filedata,
                             kinfitr:::bids_parse_petinfo))
 
+has_blood <- function(df) {
+  any(df$measurement %in% c("blood"))
+}
+
+measurements <- measurements %>%
+  filter(map_lgl(filedata, has_blood))
+
 extra_pet_details <- map(measurements$petinfo,
                          get_filterable_attributes) %>%
   bind_rows()
@@ -136,7 +143,7 @@ str_glue("## Data Subset
 
 ```{r}
 #| eval: !expr subsetting
-#| echo: false
+#| echo: !expr subsetting
 kable(config_subset)
 ```
 
@@ -166,16 +173,21 @@ kable(bidsdata_attributes)
 do_dispcor <- config$Model$WholeBlood$dispcor
 ```
 
-```{r, eval=do_dispcor}
+```{r}
 #| results: asis
+#| eval: !expr do_dispcor
 #| echo: false
+
 
 str_glue("## Dispersion Correction
          
          Now we perform dispersion correction to account for dispersion through the tubing for the blood samples from the autosampler.")
 ```
 
-```{r,echo=do_dispcor, eval=do_dispcor}
+```{r}
+#| eval: !expr do_dispcor
+#| echo: !expr do_dispcor
+
 # Check if specified
 for(i in 1:nrow(bidsdata)) {
   
@@ -275,7 +287,9 @@ choose_best_model <- (config$Model$ParentFraction$Method=="Fit Individually: Cho
 
 <!-- Choose the best model -->
 
-```{r pf-modelcompare, eval=choose_best_model,echo=choose_best_model}
+```{r pf-modelcompare}
+#| eval: !expr choose_best_model
+#| echo: !expr choose_best_model
 #| fig-height: 4
 #| fig-width: 7
 
@@ -290,8 +304,10 @@ pf_modelcompare$plot
 kable(pf_modelcompare$scores)
 ```
 
-```{r pf-modelcompare-description, eval=choose_best_model, echo=FALSE}
+```{r pf-modelcompare-description}
 #| results: asis
+#| eval: !expr choose_best_model
+#| echo: false
 
 str_glue("Based on the overall sum of the AIC scores, the winning model is `",
        pf_modelcompare$scores$Model[1], "`. The parent fraction curves ",
@@ -299,7 +315,9 @@ str_glue("Based on the overall sum of the AIC scores, the winning model is `",
 
 ```
 
-```{r pf-model-update, eval=choose_best_model, echo=choose_best_model}
+```{r pf-model-update}
+#| eval: !expr choose_best_model
+#| echo: false
 
 config$Model$ParentFraction$Method <- paste0("Fit Individually: ",
                                              pf_modelcompare$scores$Model[1])
@@ -323,7 +341,9 @@ parametric_pf <- any(do_hill, do_exp, do_power, do_sigmoid,
 ```
 
 
-```{r pf-hill,echo=do_hill, eval=do_hill}
+```{r pf-hill}
+#| echo: !expr do_hill
+#| eval: !expr do_hill
 #| fig-height: 4
 #| fig-width: 5
 
@@ -354,7 +374,9 @@ pf_data <- pf_data %>%
 pmap(list(pf_data$pf, pf_data$preds, pf_data$pet), plot_pf_preds)
 ```
 
-```{r pf-exp,echo=do_exp, eval=do_exp}
+```{r pf-exp}
+#| echo: !expr do_exp
+#| eval: !expr do_exp
 #| fig-height: 4
 #| fig-width: 5
 
@@ -385,7 +407,9 @@ pf_data <- pf_data %>%
 pmap(list(pf_data$pf, pf_data$preds, pf_data$pet), plot_pf_preds)
 ```
 
-```{r pf-power,echo=do_power, eval=do_power}
+```{r pf-power}
+#| echo: !expr do_power
+#| eval: !expr do_power
 #| fig-height: 4
 #| fig-width: 5
 
@@ -416,7 +440,9 @@ pf_data <- pf_data %>%
 pmap(list(pf_data$pf, pf_data$preds, pf_data$pet), plot_pf_preds)
 ```
 
-```{r pf-sigmoid,echo=do_sigmoid, eval=do_sigmoid}
+```{r pf-sigmoid}
+#| echo: !expr do_sigmoid
+#| eval: !expr do_sigmoid
 #| fig-height: 4
 #| fig-width: 5
 
@@ -447,7 +473,9 @@ pf_data <- pf_data %>%
 pmap(list(pf_data$pf, pf_data$preds, pf_data$pet), plot_pf_preds)
 ```
 
-```{r pf-invgamma,echo=do_invgamma, eval=do_invgamma}
+```{r pf-invgamma}
+#| echo: !expr do_invgamma
+#| eval: !expr do_invgamma
 #| fig-height: 4
 #| fig-width: 5
 
@@ -478,7 +506,9 @@ pf_data <- pf_data %>%
 pmap(list(pf_data$pf, pf_data$preds, pf_data$pet), plot_pf_preds)
 ```
 
-```{r pf-gamma,echo=do_gamma, eval=do_gamma}
+```{r pf-gamma}
+#| echo: !expr do_gamma
+#| eval: !expr do_gamma
 #| fig-height: 4
 #| fig-width: 5
 
@@ -510,13 +540,17 @@ pmap(list(pf_data$pf, pf_data$preds, pf_data$pet), plot_pf_preds)
 ```
 
 
-```{r, eval=parametric_pf, echo=FALSE}
+```{r}
+#| eval: !expr parametric_pf
+#| echo: false
 #| results: asis
 
 str_glue("The fitted parameters are shown below.")
 ```
 
-```{r pf-parameters,echo=parametric_pf, eval=parametric_pf}
+```{r pf-parameters}
+#| echo: !expr parametric_pf
+#| eval: !expr parametric_pf
 pf_pars <- pf_data %>% 
   mutate(pf_pars = map(pf_fit, ~as_tibble(as.list(coef(.x))))) %>% 
   select(pet, pf_pars)
@@ -528,7 +562,9 @@ pf_pars %>%
 
 
 
-```{r pf-gam,echo=do_gam, eval=do_gam}
+```{r pf-gam}
+#| echo: !expr do_gam
+#| eval: !expr do_gam
 #| fig-height: 4
 #| fig-width: 5
 
@@ -569,7 +605,9 @@ pf_data <- pf_data %>%
 pmap(list(pf_data$pf, pf_data$preds, pf_data$pet), plot_pf_preds)
 ```
 
-```{r pf-hgam-fit,echo=do_hgam, eval=do_hgam}
+```{r pf-hgam-fit}
+#| echo: !expr do_hgam
+#| eval: !expr do_hgam
 #| fig-height: 4
 #| fig-width: 8
 
@@ -613,7 +651,9 @@ appraise(pf_hgam_fit)
 draw(pf_hgam_fit, scales = "fixed")
 ```
 
-```{r pf-hgam-plot,echo=do_hgam, eval=do_hgam}
+```{r pf-hgam-plot}
+#| echo: !expr do_hgam
+#| eval: !expr do_hgam
 #| fig-height: 4
 #| fig-width: 5
 
@@ -640,7 +680,9 @@ pmap(list(pf_data$pf, pf_data$preds, pf_data$pet), plot_pf_preds)
 
 
 
-```{r, eval=fit_pf, echo=FALSE}
+```{r}
+#| eval: !expr fit_pf
+#| echo: false
 #| results: asis
 
 str_glue("#### Inserting the predictions
@@ -648,7 +690,9 @@ str_glue("#### Inserting the predictions
          Now we insert the model predictions into our blood data.")
 ```
 
-```{r pf-update,echo=fit_pf, eval=fit_pf}
+```{r pf-update}
+#| echo: !expr fit_pf
+#| eval: !expr fit_pf
 bidsdata <- inner_join(bidsdata, pf_data) %>% 
   mutate(preds = map(preds, ~mutate(.x, 
                              parentFraction = as.numeric(
@@ -667,7 +711,8 @@ if("pf_fit" %in% colnames(bidsdata)) {
 ```
 
 
-```{r pf-config_cleanup, echo=FALSE}
+```{r pf-config_cleanup}
+#| echo: false
 # Cleaning up the config
 if( !do_gam ) {
   config$Model$ParentFraction$gam_k <- NULL
@@ -716,7 +761,9 @@ parametric_bpr <- any(do_constant, do_linear)
 # nonparam_bpr <- !parametric_bpr
 ```
 
-```{r bpr-constant,echo=do_constant, eval=do_constant}
+```{r bpr-constant}
+#| echo: !expr do_constant
+#| eval: !expr do_constant
 #| fig-height: 4
 #| fig-width: 5
 
@@ -742,11 +789,19 @@ bpr_data <- bpr_data %>%
     time = predtimes,
     bpr = as.numeric(coef(.x)[1]))))
 
+bpr_data <- bpr_data %>%
+  mutate(preds = map(bpr_fit, ~tibble(
+    time = predtimes)),
+         preds = map2(bpr_fit, preds, ~.y %>% 
+                        mutate(bpr = predict(.x, newdata=.y))))
+
 # Plot
 pmap(list(bpr_data$bpr, bpr_data$preds, bpr_data$pet), plot_bpr_preds)
 ```
 
-```{r bpr-linear,echo=do_linear, eval=do_linear}
+```{r bpr-linear}
+#| echo: !expr do_linear
+#| eval: !expr do_linear
 #| fig-height: 4
 #| fig-width: 5
 
@@ -779,13 +834,17 @@ pmap(list(bpr_data$bpr, bpr_data$preds, bpr_data$pet), plot_bpr_preds)
 
 
 
-```{r, eval=parametric_bpr, echo=FALSE}
+```{r}
+#| eval: !expr parametric_bpr
+#| echo: false
 #| results: asis
 
 str_glue("The fitted parameters are shown below.")
 ```
 
-```{r bpr-parameters,echo=parametric_bpr, eval=parametric_bpr}
+```{r bpr-parameters}
+#| echo: !expr parametric_bpr
+#| eval: !expr parametric_bpr
 bpr_pars <- bpr_data %>% 
   mutate(bpr_pars = map(bpr_fit, ~as_tibble(as.list(coef(.x))))) %>% 
   select(pet, bpr_pars)
@@ -797,7 +856,9 @@ bpr_pars %>%
 
 
 
-```{r bpr-gam,echo=do_gam, eval=do_gam}
+```{r bpr-gam}
+#| echo: !expr do_gam
+#| eval: !expr do_gam
 #| fig-height: 4
 #| fig-width: 5
 
@@ -832,7 +893,9 @@ bpr_data <- bpr_data %>%
 pmap(list(bpr_data$bpr, bpr_data$preds, bpr_data$pet), plot_bpr_preds)
 ```
 
-```{r bpr-hgam-fit,echo=do_hgam, eval=do_hgam}
+```{r bpr-hgam-fit}
+#| echo: !expr do_hgam
+#| eval: !expr do_hgam
 #| fig-height: 4
 #| fig-width: 8
 
@@ -866,7 +929,9 @@ appraise(bpr_hgam_fit)
 draw(bpr_hgam_fit, scales = "fixed")
 ```
 
-```{r bpr-hgam-plot,echo=do_hgam, eval=do_hgam}
+```{r bpr-hgam-plot}
+#| echo: !expr do_hgam
+#| eval: !expr do_hgam
 #| fig-height: 4
 #| fig-width: 5
 
@@ -890,7 +955,9 @@ bpr_data <- inner_join(bpr_data,
 pmap(list(bpr_data$bpr, bpr_data$preds, bpr_data$pet), plot_bpr_preds)
 ```
 
-```{r, eval=fit_bpr, echo=FALSE}
+```{r}
+#| eval: !expr fit_bpr
+#| echo: false
 #| results: asis
 
 str_glue("#### Inserting the predictions
@@ -898,7 +965,9 @@ str_glue("#### Inserting the predictions
          Now we insert the model predictions into our blood data.")
 ```
 
-```{r bpr-update-fitted,echo=use_fitted, eval=use_fitted}
+```{r bpr-update-fitted}
+#| echo: !expr use_fitted
+#| eval: !expr use_fitted
 bidsdata <- inner_join(bidsdata, bpr_data) %>% 
   mutate(blooddata = map2(blooddata, preds, 
                           ~bd_addfitted(.x, time = .y$time, 
@@ -911,7 +980,9 @@ if("bpr_fit" %in% colnames(bidsdata)) {
 }
 ```
 
-```{r bpr-update-fit,echo=use_fit, eval=use_fit}
+```{r bpr-update-fit}
+#| echo: !expr use_fit
+#| eval: !expr use_fit
 bidsdata <- inner_join(bidsdata, bpr_data) %>% 
   mutate(blooddata = map2(blooddata, bpr_fit, 
                           ~bd_addfit(.x, fit = .y,
@@ -924,7 +995,8 @@ if("bpr_fit" %in% colnames(bidsdata)) {
 ```
 
 
-```{r bpr-config_cleanup, echo=FALSE}
+```{r bpr-config_cleanup}
+#| echo: false
 # Cleaning up the config
 if( !do_gam ) {
   config$Model$BPR$gam_k <- NULL
@@ -990,7 +1062,9 @@ parametric_aif <- any(do_triexp, do_feng, do_fengconv)
 nonparam_aif <- do_splines
 ```
 
-```{r aif-triexp,echo=do_triexp, eval=do_triexp}
+```{r aif-triexp}
+#| echo: !expr do_triexp
+#| eval: !expr do_triexp
 #| fig-height: 4
 #| fig-width: 9
 
@@ -1046,7 +1120,9 @@ aif_data <- aif_data %>%
                        peakval = peakval*1000)))
 ```
 
-```{r aif-feng,echo=do_feng, eval=do_feng}
+```{r aif-feng}
+#| echo: !expr do_feng
+#| eval: !expr do_feng
 #| fig-height: 4
 #| fig-width: 9
 
@@ -1101,7 +1177,9 @@ aif_data <- aif_data %>%
                        C = C*1000)))
 ```
 
-```{r aif-fengconv,echo=do_fengconv, eval=do_fengconv}
+```{r aif-fengconv}
+#| echo: !expr do_fengconv
+#| eval: !expr do_fengconv
 #| fig-height: 4
 #| fig-width: 9
 
@@ -1172,13 +1250,17 @@ aif_data <- aif_data %>%
 
 
 
-```{r, eval=parametric_aif, echo=FALSE}
+```{r}
+#| eval: !expr parametric_aif
+#| echo: false
 #| results: asis
 
 str_glue("The fitted parameters are shown below.")
 ```
 
-```{r aif-parameters,echo=parametric_aif, eval=parametric_aif}
+```{r aif-parameters}
+#| echo: !expr parametric_aif
+#| eval: !expr parametric_aif
 aif_pars <- aif_data %>% 
   mutate(aif_pars = map(aif_fit, "par")) %>% 
   select(pet, aif_pars)
@@ -1189,7 +1271,9 @@ aif_pars %>%
 ```
 
 
-```{r aif-splines,echo=do_splines, eval=do_splines}
+```{r aif-splines}
+#| echo: !expr do_splines
+#| eval: !expr do_splines
 #| fig-height: 4
 #| fig-width: 9
 
@@ -1236,7 +1320,9 @@ aif_data <- aif_data %>%
 pmap(list(aif_data$aif, aif_data$preds, aif_data$pet), plot_aif_preds)
 ```
 
-```{r, eval=fit_aif, echo=FALSE}
+```{r}
+#| eval: !expr fit_aif
+#| echo: false
 #| results: asis
 
 str_glue("#### Inserting the predictions
@@ -1244,7 +1330,9 @@ str_glue("#### Inserting the predictions
          Now we insert the model predictions into our blood data.")
 ```
 
-```{r aif-update,echo=parametric_aif, eval=parametric_aif}
+```{r aif-update}
+#| echo: !expr parametric_aif
+#| eval: !expr parametric_aif
 bidsdata <- inner_join(bidsdata, aif_data) %>% 
   mutate(blooddata = map2(blooddata, aif_fit, 
                           ~bd_addfit(.x, fit = .y,
@@ -1257,7 +1345,9 @@ if("aif_fit" %in% colnames(bidsdata)) {
 ```
 
 
-```{r aif-update_nonpara,echo=nonparam_aif, eval=nonparam_aif}
+```{r aif-update_nonpara}
+#| echo: !expr nonparam_aif
+#| eval: !expr nonparam_aif
 bidsdata <- inner_join(bidsdata, aif_data) %>% 
   mutate(preds = map(preds, ~mutate(.x, 
                              aif = as.numeric(
@@ -1276,7 +1366,8 @@ if("aif_fit" %in% colnames(bidsdata)) {
 ```
 
 
-```{r aif-config_cleanup, echo=FALSE}
+```{r aif-config_cleanup}
+#| echo: false
 # Cleaning up the config
 if( !do_splines ) {
   config$Model$AIF$spline_kb <- NULL
@@ -1325,7 +1416,9 @@ do_splines <-(config$Model$WholeBlood$Method=="Fit Individually: Splines")
 fit_wb <- config$Model$WholeBlood$Method != "Interpolation"
 ```
 
-```{r wb-splines,echo=do_splines, eval=do_splines}
+```{r wb-splines}
+#| echo: !expr do_splines
+#| eval: !expr do_splines
 #| fig-height: 4
 #| fig-width: 9
 
@@ -1364,7 +1457,9 @@ wb_data <- wb_data %>%
 pmap(list(wb_data$wb, wb_data$preds, wb_data$pet), plot_wb_preds)
 ```
 
-```{r, eval=fit_wb, echo=FALSE}
+```{r}
+#| eval: !expr fit_wb
+#| echo: false
 #| results: asis
 
 str_glue("#### Inserting the predictions
@@ -1386,7 +1481,10 @@ str_glue("#### Inserting the predictions
 <!-- ``` -->
 
 
-```{r wb-update,echo=fit_wb, eval=fit_wb}
+```{r wb-update}
+#| echo: !expr fit_wb
+#| eval: !expr fit_wb
+
 bidsdata <- inner_join(bidsdata, wb_data) %>% 
   mutate(preds = map(preds, ~mutate(.x, 
                              activity = as.numeric(
@@ -1405,7 +1503,8 @@ if("wb_fit" %in% colnames(bidsdata)) {
 ```
 
 
-```{r wb-config_cleanup, echo=FALSE}
+```{r wb-config_cleanup}
+#| echo: false
 # Cleaning up the config
 if( !do_splines ) {
   config$Model$WholeBlood$spline_kb <- NULL
@@ -1437,7 +1536,9 @@ final_plotting <- any(
 all_interp <- !final_plotting
 ```
 
-```{r, eval=final_plotting, echo=FALSE}
+```{r}
+#| eval: !expr final_plotting
+#| echo: false
 #| results: asis
 
 str_glue("Below are shown the fits to all the blood data after modelling. Inspect these plots to make sure that everything seems fine.")
@@ -1454,7 +1555,9 @@ map2(bidsdata$blooddata, bidsdata$pet,
      plot_blooddata_extra)
 ```
 
-```{r, eval=all_interp, echo=FALSE}
+```{r}
+#| eval: !expr all_interp
+#| echo: false
 #| results: asis
 
 str_glue("Because no modelling was performed, the final plots are the same as the initial plots.")
@@ -1464,7 +1567,8 @@ str_glue("Because no modelling was performed, the final plots are the same as th
 
 First, we create the relevant filenames, and delete any files in the relevant folders.
 
-```{r prep-output-filenames, results='hide'}
+```{r prep-output-filenames}
+#| results: hide
 bidsdata <- bidsdata %>% 
   mutate(bloodfilename = map_chr(filedata, ~.x %>% 
                                   filter(measurement == "blood") %>% 
@@ -1518,7 +1622,8 @@ bidsdata <- bidsdata %>%
 
 ... and save the tabular tsv files to the derivatives folder.
 
-```{r save-tsvs, warning=FALSE}
+```{r save-tsvs}
+#| warning: false
 walk( dirname(bidsdata$output_filename), 
       dir.create, recursive=T)
 
@@ -1560,13 +1665,17 @@ walk(bidsdata$output_json_filename, ~write_json(output_description, path = .x,
 
 And finally, we include config files describing the models used for each step.
 
-```{r, eval=parametric_aif, echo=FALSE}
+```{r}
+#| eval: !expr parametric_aif
+#| echo: false
 #| results: asis
 
 str_glue("Because we used a parametric model for the AIF, we will first add the AIF parameters to the output. These parameters are refer to Bq/mL and seconds.")
 ```
 
-```{r save_config_parametricaif, eval=parametric_aif, echo=parametric_aif}
+```{r save_config_parametricaif}
+#| eval: !expr parametric_aif
+#| echo: !expr parametric_aif
 aif_pars <- aif_data %>%
   select(pet, aif_parameters = aif_pars)
 
@@ -1593,7 +1702,9 @@ walk2(bidsdata$output_configdata, bidsdata$output_cfg_filename,
 ```
 
 
-```{r save_config_nonparametric, eval=nonparam_aif, echo=nonparam_aif}
+```{r save_config_nonparametric}
+#| eval: !expr nonparam_aif
+#| echo: !expr nonparam_aif
 output_config <- config$Model
 
 walk(bidsdata$output_cfg_filename, 

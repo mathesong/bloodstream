@@ -94,12 +94,15 @@ bloodstream <- function(bids_dir, configpath = NULL, derivatives_dir = NULL, ana
       execute_dir = analysis_path
     )
     
+    # Report generation completed successfully
+    cat("Report generation completed successfully!\n")
+
     # Clean up temporary files after successful completion
     temp_files_to_remove <- c(
       template_dest,  # This is now bloodstream_report.qmd
       file.path(analysis_path, "bloodstream_report.rmarkdown")
     )
-    
+
     for (temp_file in temp_files_to_remove) {
       if (file.exists(temp_file)) {
         cat("Removing temporary file:", temp_file, "\n")
@@ -108,12 +111,15 @@ bloodstream <- function(bids_dir, configpath = NULL, derivatives_dir = NULL, ana
     }
     
   }, error = function(e) {
+    # Report generation failed
+    cat("Error during report generation:", e$message, "\n")
+
     # Clean up temporary files even on error
     temp_files_to_remove <- c(
       template_dest,  # This is now bloodstream_report.qmd
       file.path(analysis_path, "bloodstream_report.rmarkdown")
     )
-    
+
     for (temp_file in temp_files_to_remove) {
       if (file.exists(temp_file)) {
         file.remove(temp_file)

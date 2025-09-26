@@ -287,13 +287,6 @@ bloodstream_config_app <- function(bids_dir = NULL, derivatives_dir = NULL, conf
               )
             ),
             
-            conditionalPanel(
-              condition = "output.bids_dir_available",
-              div(id = "pipeline_output",
-                    h4("Pipeline Status:"),
-                    verbatimTextOutput("pipeline_log")
-                )
-              )
             ),
             
             h4("Current Configuration:"),
@@ -476,14 +469,13 @@ bloodstream_config_app <- function(bids_dir = NULL, derivatives_dir = NULL, conf
     )
     
     # Pipeline execution
-    pipeline_result <- reactiveVal(NULL)
-    pipeline_running <- reactiveVal(FALSE)
     
     observeEvent(input$run_pipeline, {
       if (!is.null(bids_dir) && dir.exists(bids_dir)) {
         
-        pipeline_running(TRUE)
-        pipeline_result("Starting pipeline...")
+        # Show processing notification that stays visible during processing
+        processing_id <- showNotification("Running bloodstream...", 
+                        type = "message", duration = NULL, id = "processing_pipeline")
         
         # Save config to temporary file
         temp_config_file <- tempfile(fileext = ".json")
@@ -496,32 +488,30 @@ bloodstream_config_app <- function(bids_dir = NULL, derivatives_dir = NULL, conf
           result <- bloodstream(bids_dir = bids_dir, configpath = temp_config_file, 
                                derivatives_dir = derivatives_dir, analysis_foldername = analysis_folder)
           
-          pipeline_result(paste0("Pipeline completed successfully!\n\n",
-                                 "Check the output to ensure that the fitting was successful.\n\n",
-                                 "You can close the web app to finish the process, or alternatively\n",
-                                 "edit the model fitting options and run it again if the first run was unsuccessful."))
-          pipeline_running(FALSE)
+          # Remove processing notification and show success
+          removeNotification("processing_pipeline")
+          showNotification(HTML("Pipeline completed successfully!<br>Check the output to ensure fitting was successful.<br>App will close in 3 seconds..."), 
+                          type = "message", duration = 5)
           
           # Clean up temp file
           unlink(temp_config_file)
           
+          # Auto-close the app after successful completion
+          later::later(function() {
+            cat("Auto-closing Shiny app after successful pipeline completion...\n")
+            stopApp()
+          }, delay = 3)
+          
         }, error = function(e) {
-          pipeline_result(paste("Pipeline failed with error:", e$message))
-          pipeline_running(FALSE)
+          # Remove processing notification on error
+          removeNotification("processing_pipeline")
+          showNotification(paste("Pipeline failed with error:", e$message), 
+                          type = "error", duration = 10)
           unlink(temp_config_file)
         })
       }
     })
     
-    output$pipeline_log <- renderText({
-      if (pipeline_running()) {
-        "Pipeline is running..."
-      } else if (is.null(pipeline_result())) {
-        "Ready to run pipeline. Click 'Run Bloodstream Pipeline' to start."
-      } else {
-        pipeline_result()
-      }
-    })
     
     # Display current config
     output$json_text <- renderText({ config_json() })
