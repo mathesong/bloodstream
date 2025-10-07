@@ -89,7 +89,44 @@ docker run -v /Users/mn/mystudy:/data/ bloodstream
 and all your outputs will be in `/Users/mn/my_study/derivatives/bloodstream`.
 -->
 
+## Apptainer
 
+`bloodstream` can also be run using [Apptainer](https://apptainer.org/) (formerly Singularity), which is often preferred on HPC (high-performance computing) systems.  
+The Apptainer image can be built directly from the existing Docker image, or downloaded and used as-is.
+
+### Build or pull the image
+
+To build the container from Docker Hub and save it as a local `.sif` file:
+
+```bash
+apptainer build bloodstream.sif docker://mathesong/bloodstream:latest
+```
+
+### Running bloodstream (no config file)
+To run bloodstream using Apptainer, bind your BIDS dataset to /data inside the container:
+
+```bash
+mkdir  -p ./workdir_host
+apptainer run \
+  -B /path/to/bids_data:/data \
+  -B "$(pwd)/workdir_host":/workdir \
+  bloodstream.sif
+```
+
+If no configuration file is provided, bloodstream will default to using linear interpolation only.
+
+All outputs from the analysis will be stored in /path/to/bids_data/derivatives/.
+
+### Running with a configuration file
+
+```bash
+mkdir  -p ./workdir_host
+apptainer run \
+  -B /path/to/bids_data:/data \
+  -B "$(pwd)/workdir_host":/workdir \
+  bloodstream.sif \
+  config_pf_bpr.json
+```
 
 ## Citation
 
