@@ -456,11 +456,11 @@ bloodstream_config_app <- function(bids_dir = NULL, derivatives_dir = NULL, conf
       jsonlite::toJSON(config_list, pretty=TRUE)
     })
     
-    # Download handler - save to analysis directory if available
+    # Download handler - save to analysis directory only when bids_dir is provided
     output$downloadData <- downloadHandler(
       filename = function() {
         config_name <- generate_new_filename()
-        if (!is.null(analysis_path)) {
+        if (!is.null(bids_dir) && !is.null(analysis_path)) {
           # Create analysis directory if it doesn't exist
           if (!dir.exists(analysis_path)) {
             dir.create(analysis_path, recursive = TRUE)
@@ -473,13 +473,13 @@ bloodstream_config_app <- function(bids_dir = NULL, derivatives_dir = NULL, conf
       },
       content = function(con) {
         config_text <- config_json()
-        if (!is.null(analysis_path)) {
+        if (!is.null(bids_dir) && !is.null(analysis_path)) {
           # Save to analysis directory
           config_file_path <- file.path(analysis_path, basename(con))
           writeLines(text = config_text, con = config_file_path)
           cat("Config saved to:", config_file_path, "\n")
         }
-        # Also provide download
+        # Always provide download
         writeLines(text = config_text, con = con)
       }
     )
@@ -559,7 +559,8 @@ bloodstream_config_app <- function(bids_dir = NULL, derivatives_dir = NULL, conf
   
   cat("If running from within a docker container, open one of the following addresses in your web browser.\n")
   cat("http://localhost:", port, "\n", sep = "")
-  
+  cat("NOTE: If you are having issues accessing the web app, please check that you have included the port mapping (-p ", port, ":", port, ") in your Docker command.\n\n", sep = "")
+
   # Launch using runApp (more reliable in Docker)
   cat("Launching app...\n")
   shiny::runApp(app, host = host, port = port)

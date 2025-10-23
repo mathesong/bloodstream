@@ -45,11 +45,14 @@ detect_mounted_directories <- function() {
   cat("Derivatives directory mounted:", derivatives_available, "\n")
   cat("\n")
   
-  # For interactive mode, we need at least derivatives_dir (for saving config files)
-  # For non-interactive mode, we need at least bids_dir
+  # For interactive mode:
+  #   - Standalone config creation: no directories required
+  #   - With pipeline execution: both bids_dir and derivatives_dir required
+  # For non-interactive mode: both bids_dir and derivatives_dir required
   if (opt$mode == "interactive") {
-    if (!derivatives_available) {
-      stop("Interactive mode requires derivatives_dir to be mounted with read-write access at /data/derivatives_dir", call.=FALSE)
+    # If bids_dir is provided, derivatives_dir is required for pipeline execution
+    if (bids_available && !derivatives_available) {
+      stop("Interactive mode with BIDS directory requires derivatives_dir for pipeline execution. Mount at /data/derivatives_dir with read-write access.", call.=FALSE)
     }
   } else {
     if (!bids_available) {

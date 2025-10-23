@@ -29,7 +29,7 @@ For a short introduction to processing blood data for PET, as well as tutorial f
 |------|---------|--------------|
 | Run without config | `bloodstream(bids_dir)` → linear interpolation | `docker run ...` → linear interpolation |
 | Run with config | `bloodstream(bids_dir, configpath)` → fits models | `docker run -v my_config.json:/config.json ...` → fits models |
-| Launch config app (standalone) | `launch_bloodstream_app()` → design and save config | `docker run -p 3838:3838 -v /path/to/derivatives:/data/derivatives_dir:rw ... --mode interactive` → design and save config |
+| Launch config app (standalone) | `launch_bloodstream_app()` → design and download config | `docker run -p 3838:3838 ... --mode interactive` → design and download config |
 | Launch config app (with data) | `launch_bloodstream_app(bids_dir = "/path/to/study")` → design, run, or linear interpolation | `docker run -p 3838:3838 -v /path/to/bids:/data/bids_dir:ro -v /path/to/derivatives:/data/derivatives_dir:rw ... --mode interactive` → design, run, or linear interpolation |
 | Run pipeline after config | Use saved config with `bloodstream()` | Use saved config with Docker run |
 
@@ -96,13 +96,13 @@ launch_bloodstream_app(bids_dir = "/path/to/study", config_file = "/path/to/conf
 launch_bloodstream_app(bids_dir = "/path/to/study", analysis_foldername = "my_analysis")
 ```
 
-The interactive app allows you to:
-- Create and modify configuration files using a graphical interface
-- Load existing configurations for editing  
-- Download configuration files
-- Run the bloodstream pipeline with custom configurations OR with linear interpolation (when BIDS directory is provided)
-- Work in standalone mode for config creation only (when no BIDS directory is provided)
-
+The interactive app allows you to:  
+- Create and modify configuration files using a graphical interface  
+- Load existing configurations for editing    
+- Download configuration files  
+- Run the bloodstream pipeline with custom configurations OR with linear interpolation (when BIDS directory is provided)  
+- Work in standalone mode for config creation only (when no BIDS directory is provided)  
+  
 
 It will generate the following outputs:
 
@@ -138,20 +138,21 @@ The Docker container supports both interactive and non-interactive modes:
 
 **Standalone Config Creation** (no BIDS data needed):
 ```bash
-# Create configs without BIDS data (requires derivatives directory for saving)
+# Create and download configs without any data directories
 docker run -p 3838:3838 \
-  -v /path/to/derivatives:/data/derivatives_dir:rw \
   mathesong/bloodstream:latest --mode interactive
 ```
 
 **Interactive Mode with BIDS Data** (enables pipeline execution):
 ```bash
 # Full interactive mode with BIDS data (enables config creation, pipeline with config, or linear interpolation)
+# BOTH bids_dir and derivatives_dir are required to enable pipeline execution from the app
 docker run -p 3838:3838 \
   -v /path/to/bids/dir:/data/bids_dir:ro \
   -v /path/to/derivatives:/data/derivatives_dir:rw \
   mathesong/bloodstream:latest --mode interactive
 ```
+*Note: With BIDS directory provided, configs are saved to derivatives folder AND available for download.*
 
 **Load Existing Config**:
 ```bash
@@ -203,13 +204,13 @@ docker run \
 Below are two examples of running the app for a real folder:
 
 ```bash
-# Interactive mode with real paths and custom analysis folder
+# Interactive mode with a custom analysis folder
 docker run -p 3838:3838 \
   -v /home/granville/Repositories/OpenNeuro/ds004869/:/data/bids_dir:ro \
   -v /home/granville/Repositories/OpenNeuro/ds004869/derivatives/:/data/derivatives_dir:rw \
   mathesong/bloodstream:latest --mode interactive --analysis_foldername Secondary_Analysis
   
-
+# Non-interactive mode with a custom analysis folder
 docker run \
   -v /home/granville/Repositories/OpenNeuro/ds004869/:/data/bids_dir:ro \
   -v /home/granville/Repositories/OpenNeuro/ds004869/derivatives/:/data/derivatives_dir:rw \
