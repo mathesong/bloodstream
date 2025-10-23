@@ -3,15 +3,19 @@ title: "Blood Processing Analysis"
 params:
   configpath: "../extdata/config_default.json"
   studypath: "../../../ds004230/"
+  derivatives_dir: "../../../ds004230/derivatives/"
+  analysis_foldername: "Primary_Analysis"
 format:
   html:
+    toc: true
+    toc-depth: 2
     code-fold: true
-    code-summary: "Show the code"
+    code-tools: true
+    out-width: "100%"
+execute:
+  warning: false
+  message: false
 ---
-
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
-```
 
 ```{r libraries}
 #| output: false
@@ -29,6 +33,7 @@ library(kinfitr)
 library(bloodstream)
 
 configpath <- params$configpath
+configname <- basename(configpath)
 
 config <- jsonlite::fromJSON(configpath)
 config_subset <- parse_config_subsets(config)
@@ -36,18 +41,30 @@ config_subset <- parse_config_subsets(config)
 theme_set(theme_light())
 ```
 
-## Load the data
 
+
+## Model Configuration
+
+Here are the contents of the config file with regard to which models will be fit to the data and how.
+
+```{r}
+str(config$Model)
+```
+
+
+## Load the data
 <!-- No subsetting -->
 
 ```{r}
 #| echo: false
 
-subsetting <- (nrow(config_subset) > 0)
+subsetting <- (ncol(config_subset) > 0)
 no_subsetting <- !subsetting
 ```
 
-```{r load-data, eval=no_subsetting,echo=no_subsetting}
+```{r load-data}
+#| eval: !expr no_subsetting
+#| echo: !expr no_subsetting
 bidsdata <- bids_parse_study(params$studypath)
 
 extra_pet_details <- map(bidsdata$petinfo,
@@ -64,13 +81,22 @@ bidsdata$fulltitle <- attributes_to_title(bidsdata, all_attributes = T)
 
 <!-- Subsetting -->
 
-```{r subsetting, eval=subsetting,echo=subsetting}
+```{r subsetting}
+#| eval: !expr subsetting
+#| echo: !expr subsetting
 # Subsetting
 
 ### Extract measurement information
 measurements <- bids_parse_files(params$studypath) %>%
   mutate(petinfo = map(filedata,
                             kinfitr:::bids_parse_petinfo))
+
+has_blood <- function(df) {
+  any(df$measurement %in% c("blood"))
+}
+
+measurements <- measurements %>%
+  filter(map_lgl(filedata, has_blood))
 
 extra_pet_details <- map(measurements$petinfo,
                          get_filterable_attributes) %>%
@@ -98,24 +124,33 @@ bidsdata$pet <- attributes_to_title(bidsdata)
 bidsdata$fulltitle <- attributes_to_title(bidsdata, all_attributes = T)
 ```
 
+
+
+
+
+
 <!-- Data Subsetting -->
 
-```{r, eval=subsetting,echo=subsetting  }
-#| results: asis
+```{r}
+#| eval: !expr subsetting
 #| echo: false
+#| results: asis
 
 str_glue("## Data Subset
 
            Based on the config file, only a subset of the data will be processed in this analysis. The subsets defined are as follows:")
 ```
 
-```{r, eval=subsetting,echo=subsetting }
+```{r}
+#| eval: !expr subsetting
+#| echo: !expr subsetting
 kable(config_subset)
 ```
 
-```{r, eval=subsetting,echo=subsetting }
-#| results: asis
+```{r}
+#| eval: !expr subsetting
 #| echo: false
+#| results: asis
 
 str_glue("The resulting list of blood measurements in the following analysis are as follows:")
 ```
@@ -126,7 +161,9 @@ bidsdata_attributes <- bidsdata %>%
   select(1:(which(colnames(bidsdata)=="filedata")-1), pet)
 ```
 
-```{r subsetted-data,echo=FALSE, eval=subsetting}
+```{r subsetted-data}
+#| echo: !expr subsetting
+#| eval: !expr subsetting
 kable(bidsdata_attributes)
 ```
 
@@ -136,15 +173,21 @@ kable(bidsdata_attributes)
 do_dispcor <- config$Model$WholeBlood$dispcor
 ```
 
-```{r,echo=do_dispcor, eval=do_dispcor}
+```{r}
 #| results: asis
+#| eval: !expr do_dispcor
+#| echo: false
+
 
 str_glue("## Dispersion Correction
          
          Now we perform dispersion correction to account for dispersion through the tubing for the blood samples from the autosampler.")
 ```
 
-```{r,echo=do_dispcor, eval=do_dispcor}
+```{r}
+#| eval: !expr do_dispcor
+#| echo: !expr do_dispcor
+
 # Check if specified
 for(i in 1:nrow(bidsdata)) {
   
@@ -168,7 +211,8 @@ for(i in 1:nrow(bidsdata)) {
 
 ```{r}
 #| results: asis
-pf_warnings <- map2_chr(bidsdata$blooddata, bidsdata$pet, qc_parentFraction)
+pf_warnings <- pmap_chr(list(bidsdata$blooddata, bidsdata$petinfo, bidsdata$pet), 
+                        qc_parentFraction)
 
 pf_warnings <- pf_warnings[!is.na(pf_warnings)]
 
@@ -183,7 +227,8 @@ if(length(pf_warnings) > 0) {
 
 ```{r}
 #| results: asis
-bpr_warnings <- map2_chr(bidsdata$blooddata, bidsdata$pet, qc_bpr)
+bpr_warnings <- pmap_chr(list(bidsdata$blooddata, bidsdata$petinfo, bidsdata$pet), 
+                         qc_bpr)
 
 bpr_warnings <- bpr_warnings[!is.na(bpr_warnings)]
 
@@ -198,7 +243,8 @@ if(length(bpr_warnings) > 0) {
 
 ```{r}
 #| results: asis
-wb_warnings <- map2_chr(bidsdata$blooddata, bidsdata$pet, qc_wb)
+wb_warnings <- pmap_chr(list(bidsdata$blooddata, bidsdata$petinfo, bidsdata$pet), 
+                        qc_wb)
 
 wb_warnings <- wb_warnings[!is.na(wb_warnings)]
 
@@ -215,14 +261,13 @@ if(length(wb_warnings) > 0) {
 
 Below is the raw blood data prior to any modelling. Inspect these plots to to check for strange values. The left plot is with the original times, while the right plot presents a log-scaled x axis, allowing closer inspection of the early parts of the curve.
 
-```{r initial-plotting, fig.height=5, fig.width=10}
-#| warning: false
-#| message: false
+```{r initial-plotting}
 #| fig-height: 5
 #| fig-width: 11
+#| out-width: "100%"
 
 map2(bidsdata$blooddata, bidsdata$pet,
-     plot_blooddata_extra)
+     ~plot_blooddata_extra(.x, .y)) 
 ```
 
 ## Modelling
@@ -242,7 +287,9 @@ choose_best_model <- (config$Model$ParentFraction$Method=="Fit Individually: Cho
 
 <!-- Choose the best model -->
 
-```{r pf-modelcompare, eval=choose_best_model,echo=choose_best_model}
+```{r pf-modelcompare}
+#| eval: !expr choose_best_model
+#| echo: !expr choose_best_model
 #| fig-height: 4
 #| fig-width: 7
 
@@ -257,8 +304,9 @@ pf_modelcompare$plot
 kable(pf_modelcompare$scores)
 ```
 
-```{r pf-modelcompare-description, eval=choose_best_model,echo=choose_best_model}
+```{r pf-modelcompare-description}
 #| results: asis
+#| eval: !expr choose_best_model
 #| echo: false
 
 str_glue("Based on the overall sum of the AIC scores, the winning model is `",
@@ -267,7 +315,8 @@ str_glue("Based on the overall sum of the AIC scores, the winning model is `",
 
 ```
 
-```{r pf-model-update, eval=choose_best_model,echo=choose_best_model}
+```{r pf-model-update}
+#| eval: !expr choose_best_model
 #| echo: false
 
 config$Model$ParentFraction$Method <- paste0("Fit Individually: ",
@@ -288,11 +337,13 @@ do_hgam <- (config$Model$ParentFraction$Method=="Fit Hierarchically: HGAM")
 
 parametric_pf <- any(do_hill, do_exp, do_power, do_sigmoid, 
                      do_invgamma, do_gamma)
-nonparam_pf <- !parametric_pf
+# nonparam_pf <- !parametric_pf
 ```
 
 
-```{r pf-hill,echo=do_hill, eval=do_hill}
+```{r pf-hill}
+#| echo: !expr do_hill
+#| eval: !expr do_hill
 #| fig-height: 4
 #| fig-width: 5
 
@@ -323,7 +374,9 @@ pf_data <- pf_data %>%
 pmap(list(pf_data$pf, pf_data$preds, pf_data$pet), plot_pf_preds)
 ```
 
-```{r pf-exp,echo=do_exp, eval=do_exp}
+```{r pf-exp}
+#| echo: !expr do_exp
+#| eval: !expr do_exp
 #| fig-height: 4
 #| fig-width: 5
 
@@ -354,7 +407,9 @@ pf_data <- pf_data %>%
 pmap(list(pf_data$pf, pf_data$preds, pf_data$pet), plot_pf_preds)
 ```
 
-```{r pf-power,echo=do_power, eval=do_power}
+```{r pf-power}
+#| echo: !expr do_power
+#| eval: !expr do_power
 #| fig-height: 4
 #| fig-width: 5
 
@@ -385,7 +440,9 @@ pf_data <- pf_data %>%
 pmap(list(pf_data$pf, pf_data$preds, pf_data$pet), plot_pf_preds)
 ```
 
-```{r pf-sigmoid,echo=do_sigmoid, eval=do_sigmoid}
+```{r pf-sigmoid}
+#| echo: !expr do_sigmoid
+#| eval: !expr do_sigmoid
 #| fig-height: 4
 #| fig-width: 5
 
@@ -416,7 +473,9 @@ pf_data <- pf_data %>%
 pmap(list(pf_data$pf, pf_data$preds, pf_data$pet), plot_pf_preds)
 ```
 
-```{r pf-invgamma,echo=do_invgamma, eval=do_invgamma}
+```{r pf-invgamma}
+#| echo: !expr do_invgamma
+#| eval: !expr do_invgamma
 #| fig-height: 4
 #| fig-width: 5
 
@@ -447,7 +506,9 @@ pf_data <- pf_data %>%
 pmap(list(pf_data$pf, pf_data$preds, pf_data$pet), plot_pf_preds)
 ```
 
-```{r pf-gamma,echo=do_gamma, eval=do_gamma}
+```{r pf-gamma}
+#| echo: !expr do_gamma
+#| eval: !expr do_gamma
 #| fig-height: 4
 #| fig-width: 5
 
@@ -479,14 +540,17 @@ pmap(list(pf_data$pf, pf_data$preds, pf_data$pet), plot_pf_preds)
 ```
 
 
-```{r, eval=parametric_pf}
-#| results: asis
+```{r}
+#| eval: !expr parametric_pf
 #| echo: false
+#| results: asis
 
 str_glue("The fitted parameters are shown below.")
 ```
 
-```{r pf-parameters,echo=parametric_pf, eval=parametric_pf}
+```{r pf-parameters}
+#| echo: !expr parametric_pf
+#| eval: !expr parametric_pf
 pf_pars <- pf_data %>% 
   mutate(pf_pars = map(pf_fit, ~as_tibble(as.list(coef(.x))))) %>% 
   select(pet, pf_pars)
@@ -498,7 +562,9 @@ pf_pars %>%
 
 
 
-```{r pf-gam,echo=do_gam, eval=do_gam}
+```{r pf-gam}
+#| echo: !expr do_gam
+#| eval: !expr do_gam
 #| fig-height: 4
 #| fig-width: 5
 
@@ -515,31 +581,33 @@ config_pc <- ifelse(config$Model$ParentFraction$set_ppf0, 1, NULL)
 pf_gam_k <- as.numeric(config$Model$ParentFraction$gam_k)
 
 pf_data <- pf_data %>%
-  mutate(pf_fit = map(pf, ~mgcv::gam(parentFraction ~ s(time, 
+  mutate(pf = map(pf, ~.x %>% 
+                    filter(time > 0) %>% 
+  filter(parentFraction < 1) %>% 
+  filter(parentFraction > 0))) %>% 
+  mutate(pf_fit = map(pf, ~mgcv::gam(parentFraction ~ s(log(time), 
                                        k=pf_gam_k, 
                                        pc=config_pc), 
-                                     data=.x, method = "REML")))
+                                     data=.x, method = "REML",
+                                     family=betar(link="logit"))))
 
 # Make Predictions
 mintime <- 0
 maxtime <- max(map_dbl(pf_data$pf, ~max(.x$time)))
 predtimes <- seq(from=mintime, to=maxtime, length.out=1000)
 
-# pf_data <- pf_data %>%
-#   mutate(preds = map(pf_fit, ~tibble(
-#     time = predtimes) %>%
-#       mutate(parentFraction = predict(.x, newdata=list(time=time)))))
-
 pf_data <- pf_data %>%
   mutate(preds = map2(pf_fit, pf,
-                      ~gratia::fitted_values(.x, data=list(time=predtimes)))) %>% 
-  mutate(preds = map(preds, ~rename(.x, parentFraction = fitted)))
+                      ~fitted_values_nonzerotime(.x, data=tibble(time=predtimes)))) %>% 
+  mutate(preds = map(preds, ~rename(.x, parentFraction = .fitted)))
 
 # Plot
 pmap(list(pf_data$pf, pf_data$preds, pf_data$pet), plot_pf_preds)
 ```
 
-```{r pf-hgam-fit,echo=do_hgam, eval=do_hgam}
+```{r pf-hgam-fit}
+#| echo: !expr do_hgam
+#| eval: !expr do_hgam
 #| fig-height: 4
 #| fig-width: 8
 
@@ -554,19 +622,28 @@ pf_data <- bidsdata %>%
 pf_data_long <- pf_data %>% 
   inner_join(bidsdata_attributes) %>% 
   unnest(pf) %>% 
-  mutate(across(is.character, as.factor))
+  mutate(across(where(is.character), as.factor)) %>% 
+  filter(time > 0) %>% 
+  mutate(parentFraction = ifelse(
+    parentFraction > 0.999,
+    yes=0.999, no = parentFraction
+  )) %>% 
+  mutate(parentFraction = ifelse(
+    parentFraction < 0.001,
+    yes=0.001, no = parentFraction
+  ))
 
 # Fit Model
 config_pc <- ifelse(config$Model$ParentFraction$set_ppf0, 1, NULL)
 hgam_formula <- as.formula(
   paste0(
-    "(parentFraction ~ ",
-    config$Model$ParentFraction$hgam_formula,
-    ")" )
+    "parentFraction ~ ",
+    config$Model$ParentFraction$hgam_formula )
   )
 
 pf_hgam_fit = mgcv::gam(formula = hgam_formula, 
-                            data=pf_data_long, method = "REML")
+                        data=pf_data_long, method = "REML",
+                        family=betar(link="logit"))
 
 # Diagnostics
 k.check(pf_hgam_fit)
@@ -574,7 +651,9 @@ appraise(pf_hgam_fit)
 draw(pf_hgam_fit, scales = "fixed")
 ```
 
-```{r pf-hgam-plot,echo=do_hgam, eval=do_hgam}
+```{r pf-hgam-plot}
+#| echo: !expr do_hgam
+#| eval: !expr do_hgam
 #| fig-height: 4
 #| fig-width: 5
 
@@ -586,8 +665,8 @@ predtimes <- seq(from=mintime, to=maxtime, length.out=1000)
 hgam_preds <- tidyr::expand_grid(bidsdata_attributes,
                                  time = predtimes)
 
-hgam_preds <- gratia::fitted_values(pf_hgam_fit, data=hgam_preds) %>% 
-  rename(parentFraction = fitted) 
+hgam_preds <- fitted_values_nonzerotime(pf_hgam_fit, data=hgam_preds) %>% 
+  rename(parentFraction = .fitted) 
 
 pf_data <- inner_join(pf_data,
                       hgam_preds %>% 
@@ -598,14 +677,22 @@ pf_data <- inner_join(pf_data,
 pmap(list(pf_data$pf, pf_data$preds, pf_data$pet), plot_pf_preds)
 ```
 
-```{r, eval=fit_pf}
-#| results: asis
-#| echo: false
 
-str_glue("#### Inserting the predictions")
+
+
+```{r}
+#| eval: !expr fit_pf
+#| echo: false
+#| results: asis
+
+str_glue("#### Inserting the predictions
+         
+         Now we insert the model predictions into our blood data.")
 ```
 
-```{r pf-update,echo=fit_pf, eval=fit_pf}
+```{r pf-update}
+#| echo: !expr fit_pf
+#| eval: !expr fit_pf
 bidsdata <- inner_join(bidsdata, pf_data) %>% 
   mutate(preds = map(preds, ~mutate(.x, 
                              parentFraction = as.numeric(
@@ -624,7 +711,8 @@ if("pf_fit" %in% colnames(bidsdata)) {
 ```
 
 
-```{r pf-config_cleanup, echo=FALSE}
+```{r pf-config_cleanup}
+#| echo: false
 # Cleaning up the config
 if( !do_gam ) {
   config$Model$ParentFraction$gam_k <- NULL
@@ -670,11 +758,12 @@ use_fitted <- do_constant || do_hgam
 use_fit <- do_linear || do_gam
 
 parametric_bpr <- any(do_constant, do_linear)
-nonparam_bpr <- !parametric_bpr
-
+# nonparam_bpr <- !parametric_bpr
 ```
 
-```{r bpr-constant,echo=do_constant, eval=do_constant}
+```{r bpr-constant}
+#| echo: !expr do_constant
+#| eval: !expr do_constant
 #| fig-height: 4
 #| fig-width: 5
 
@@ -710,7 +799,9 @@ bpr_data <- bpr_data %>%
 pmap(list(bpr_data$bpr, bpr_data$preds, bpr_data$pet), plot_bpr_preds)
 ```
 
-```{r bpr-linear,echo=do_linear, eval=do_linear}
+```{r bpr-linear}
+#| echo: !expr do_linear
+#| eval: !expr do_linear
 #| fig-height: 4
 #| fig-width: 5
 
@@ -743,14 +834,17 @@ pmap(list(bpr_data$bpr, bpr_data$preds, bpr_data$pet), plot_bpr_preds)
 
 
 
-```{r, eval=parametric_bpr}
-#| results: asis
+```{r}
+#| eval: !expr parametric_bpr
 #| echo: false
+#| results: asis
 
 str_glue("The fitted parameters are shown below.")
 ```
 
-```{r bpr-parameters,echo=parametric_bpr, eval=parametric_bpr}
+```{r bpr-parameters}
+#| echo: !expr parametric_bpr
+#| eval: !expr parametric_bpr
 bpr_pars <- bpr_data %>% 
   mutate(bpr_pars = map(bpr_fit, ~as_tibble(as.list(coef(.x))))) %>% 
   select(pet, bpr_pars)
@@ -762,7 +856,9 @@ bpr_pars %>%
 
 
 
-```{r bpr-gam,echo=do_gam, eval=do_gam}
+```{r bpr-gam}
+#| echo: !expr do_gam
+#| eval: !expr do_gam
 #| fig-height: 4
 #| fig-width: 5
 
@@ -778,7 +874,8 @@ bpr_data <- bidsdata %>%
 bpr_data <- bpr_data %>%
   mutate(bpr_fit = map(bpr, ~gam(bpr ~ s(time, 
                                          k = as.numeric(config$Model$BPR$gam_k)), 
-                                 data=.x)))
+                                 data=.x, method = "REML",
+                                 family=scat())))
 
 # Make Predictions
 mintime <- 0
@@ -786,9 +883,9 @@ maxtime <- max(map_dbl(bpr_data$bpr, ~max(.x$time)))
 predtimes <- seq(from=mintime, to=maxtime, length.out=1000)
 
 bpr_data <- bpr_data %>%
-  mutate(preds = map2(bpr_fit, bpr,
-                      ~gratia::fitted_values(.x, data=list(time=predtimes)))) %>% 
-  mutate(preds = map(preds, ~rename(.x, bpr = fitted)))
+  mutate(preds = map(bpr_fit,
+                     ~gratia::fitted_values(.x, data = list(time = predtimes)))) %>% 
+  mutate(preds = map(preds, ~rename(.x, bpr = .fitted)))
 
 
 
@@ -796,7 +893,9 @@ bpr_data <- bpr_data %>%
 pmap(list(bpr_data$bpr, bpr_data$preds, bpr_data$pet), plot_bpr_preds)
 ```
 
-```{r bpr-hgam-fit,echo=do_hgam, eval=do_hgam}
+```{r bpr-hgam-fit}
+#| echo: !expr do_hgam
+#| eval: !expr do_hgam
 #| fig-height: 4
 #| fig-width: 8
 
@@ -816,13 +915,13 @@ bpr_data_long <- bpr_data %>%
 # Fit Model
 hgam_formula <- as.formula(
   paste0(
-    "(bpr ~ ",
-    config$Model$BPR$hgam_formula,
-    ")" )
+    "bpr ~ ",
+    config$Model$BPR$hgam_formula )
   )
 
 bpr_hgam_fit = mgcv::gam(formula = hgam_formula, 
-                            data=bpr_data_long, method = "REML")
+                         data=bpr_data_long, method = "REML",
+                         family=scat())
 
 # Diagnostics
 k.check(bpr_hgam_fit)
@@ -830,7 +929,9 @@ appraise(bpr_hgam_fit)
 draw(bpr_hgam_fit, scales = "fixed")
 ```
 
-```{r bpr-hgam-plot,echo=do_hgam, eval=do_hgam}
+```{r bpr-hgam-plot}
+#| echo: !expr do_hgam
+#| eval: !expr do_hgam
 #| fig-height: 4
 #| fig-width: 5
 
@@ -843,7 +944,7 @@ hgam_preds <- tidyr::expand_grid(bidsdata_attributes,
                                  time = predtimes)
 
 hgam_preds <- gratia::fitted_values(bpr_hgam_fit, data=hgam_preds) %>% 
-  rename(bpr = fitted) 
+  rename(bpr = .fitted) 
 
 bpr_data <- inner_join(bpr_data,
                       hgam_preds %>% 
@@ -854,14 +955,19 @@ bpr_data <- inner_join(bpr_data,
 pmap(list(bpr_data$bpr, bpr_data$preds, bpr_data$pet), plot_bpr_preds)
 ```
 
-```{r, eval=fit_bpr}
-#| results: asis
+```{r}
+#| eval: !expr fit_bpr
 #| echo: false
+#| results: asis
 
-str_glue("#### Inserting the predictions")
+str_glue("#### Inserting the predictions
+         
+         Now we insert the model predictions into our blood data.")
 ```
 
-```{r bpr-update-fitted,echo=use_fitted, eval=use_fitted}
+```{r bpr-update-fitted}
+#| echo: !expr use_fitted
+#| eval: !expr use_fitted
 bidsdata <- inner_join(bidsdata, bpr_data) %>% 
   mutate(blooddata = map2(blooddata, preds, 
                           ~bd_addfitted(.x, time = .y$time, 
@@ -874,7 +980,9 @@ if("bpr_fit" %in% colnames(bidsdata)) {
 }
 ```
 
-```{r bpr-update-fit,echo=use_fit, eval=use_fit}
+```{r bpr-update-fit}
+#| echo: !expr use_fit
+#| eval: !expr use_fit
 bidsdata <- inner_join(bidsdata, bpr_data) %>% 
   mutate(blooddata = map2(blooddata, bpr_fit, 
                           ~bd_addfit(.x, fit = .y,
@@ -887,7 +995,8 @@ if("bpr_fit" %in% colnames(bidsdata)) {
 ```
 
 
-```{r bpr-config_cleanup, echo=FALSE}
+```{r bpr-config_cleanup}
+#| echo: false
 # Cleaning up the config
 if( !do_gam ) {
   config$Model$BPR$gam_k <- NULL
@@ -910,6 +1019,28 @@ if( config$Model$BPR$endtime == Inf ) {
 
 The selected modelling approach for modelling the arterial input function (AIF) data is `r config$Model$AIF$Method`.
 
+```{r aif-weighting-setup}
+#| echo: false
+
+# Define variables for AIF weighting display
+fit_aif <- config$Model$AIF$Method != "Interpolation"
+
+# Get weighting parameters with defaults for display
+weightscheme_display <- ifelse(is.null(config$Model$AIF$weightscheme), 2, config$Model$AIF$weightscheme)
+method_weights_display <- ifelse(is.null(config$Model$AIF$Method_weights), TRUE, config$Model$AIF$Method_weights)
+taper_weights_display <- ifelse(is.null(config$Model$AIF$taper_weights), TRUE, config$Model$AIF$taper_weights)
+
+weight_scheme_text <- ifelse(weightscheme_display == 1, "Uniform weighting", "Time/activity weighting (Method 2)")
+```
+
+```{r aif-weighting-info}
+#| echo: !expr fit_aif
+#| eval: !expr fit_aif
+#| results: asis
+
+cat("**Weighting Configuration:** ", weight_scheme_text, " with Method weights: ", method_weights_display, " and Taper weights: ", taper_weights_display, ".\n\n")
+```
+
 ```{r aif-setup}
 #| echo: false
 
@@ -928,19 +1059,60 @@ aif_model_shortname <- case_when(
 fit_aif <- config$Model$AIF$Method != "Interpolation"
 
 parametric_aif <- any(do_triexp, do_feng, do_fengconv)
-nonparam_aif <- !parametric_aif
+nonparam_aif <- do_splines
+
+exclude_early_manual_aif <- !is.null(config$Model$AIF$exclude_manual_during_continuous) && 
+                            config$Model$AIF$exclude_manual_during_continuous
 ```
 
-```{r aif-triexp,echo=do_triexp, eval=do_triexp}
+```{r aif-exclude-manual}
+#| echo: !expr exclude_early_manual_aif
+#| eval: !expr exclude_early_manual_aif
+
+# Filter out manual samples collected during continuous sampling for AIF
+bidsdata <- bidsdata %>%
+  mutate(blooddata = map(blooddata, function(bd) {
+    aif_data <- bd_extract(bd, output="AIF")
+    
+    # Find the latest continuous sampling time point
+    continuous_data <- aif_data %>% filter(Method == "Continuous")
+    if (nrow(continuous_data) > 0) {
+      max_continuous_time <- max(continuous_data$time, na.rm = TRUE)
+      
+      # Filter out discrete samples before the last continuous sample
+      aif_data_filtered <- aif_data %>%
+        filter(!(Method == "Discrete" & time <= max_continuous_time))
+      
+      # Update the blooddata object with filtered AIF
+      bd <- bd_addfitted(bd, aif_data_filtered, modelname = "AIF")
+    }
+    return(bd)
+  }))
+```
+
+```{r aif-triexp}
+#| echo: !expr do_triexp
+#| eval: !expr do_triexp
 #| fig-height: 4
 #| fig-width: 9
 
 # Extract Data
 aif_data <- bidsdata %>%
   mutate(aif = map(blooddata, ~bd_extract(.x, output="AIF"))) %>%
-  mutate(aif = map(aif, ~.x %>%
-           filter(time >= as.numeric(config$Model$AIF$starttime)*60) %>%
-           filter(time <= as.numeric(config$Model$AIF$endtime)*60))) %>%
+  mutate(aif = map(aif, ~{
+    # Filter out manual samples during continuous sampling if enabled
+    if (exclude_early_manual_aif) {
+      continuous_data <- .x %>% filter(Method == "Continuous")
+      if (nrow(continuous_data) > 0) {
+        max_continuous_time <- max(continuous_data$time, na.rm = TRUE)
+        .x <- .x %>% filter(!(Method == "Discrete" & time <= max_continuous_time))
+      }
+    }
+    # Apply time filtering
+    .x %>%
+      filter(time >= as.numeric(config$Model$AIF$starttime)*60) %>%
+      filter(time <= as.numeric(config$Model$AIF$endtime)*60)
+  })) %>%
   select(pet, aif)
 
 # Fit Model
@@ -951,9 +1123,17 @@ expdecay_props <- ifelse( is.na(expdecay_props),
                           yes = c(1/60, 0.1),
                           no = expdecay_props)
 
+# Set weighting parameters with defaults
+weightscheme <- ifelse(is.null(config$Model$AIF$weightscheme), 2, config$Model$AIF$weightscheme)
+Method_weights <- ifelse(is.null(config$Model$AIF$Method_weights), TRUE, config$Model$AIF$Method_weights)
+taper_weights <- ifelse(is.null(config$Model$AIF$taper_weights), TRUE, config$Model$AIF$taper_weights)
+
 aif_data <- aif_data %>%
   mutate(aif_fit = map(aif, ~blmod_exp(time = .x$time, activity = .x$aif,
-                                       Method = .x$Method)))
+                                       Method = .x$Method, 
+                                       weightscheme = weightscheme,
+                                       Method_weights = Method_weights,
+                                       taper_weights = taper_weights)))
 
 # Make Predictions
 mintime <- 0
@@ -963,7 +1143,7 @@ predtimes <- seq(from=mintime, to=maxtime, length.out=6000)
 aif_data <- aif_data %>%
   mutate(preds = map(aif_fit, ~tibble(
     time = predtimes) %>%
-      mutate(aif = kinfitr:::predict.blood_exp(.x, newdata=list(time=time)))))
+      mutate(aif = predict(.x, newdata=list(time=time)))))
 
 # Plot
 pmap(list(aif_data$aif, aif_data$preds, aif_data$pet), plot_aif_preds)
@@ -979,16 +1159,29 @@ aif_data <- aif_data %>%
                        peakval = peakval*1000)))
 ```
 
-```{r aif-feng,echo=do_feng, eval=do_feng}
+```{r aif-feng}
+#| echo: !expr do_feng
+#| eval: !expr do_feng
 #| fig-height: 4
 #| fig-width: 9
 
 # Extract Data
 aif_data <- bidsdata %>%
   mutate(aif = map(blooddata, ~bd_extract(.x, output="AIF"))) %>%
-  mutate(aif = map(aif, ~.x %>%
-           filter(time >= as.numeric(config$Model$AIF$starttime)*60) %>%
-           filter(time <= as.numeric(config$Model$AIF$endtime)*60))) %>%
+  mutate(aif = map(aif, ~{
+    # Filter out manual samples during continuous sampling if enabled
+    if (exclude_early_manual_aif) {
+      continuous_data <- .x %>% filter(Method == "Continuous")
+      if (nrow(continuous_data) > 0) {
+        max_continuous_time <- max(continuous_data$time, na.rm = TRUE)
+        .x <- .x %>% filter(!(Method == "Discrete" & time <= max_continuous_time))
+      }
+    }
+    # Apply time filtering
+    .x %>%
+      filter(time >= as.numeric(config$Model$AIF$starttime)*60) %>%
+      filter(time <= as.numeric(config$Model$AIF$endtime)*60)
+  })) %>%
   select(pet, aif)
 
 # Fit Model
@@ -999,9 +1192,17 @@ expdecay_props <- ifelse( is.na(expdecay_props),
                           yes = c(1/60, 0.1),
                           no = expdecay_props)
 
+# Set weighting parameters with defaults
+weightscheme <- ifelse(is.null(config$Model$AIF$weightscheme), 2, config$Model$AIF$weightscheme)
+Method_weights <- ifelse(is.null(config$Model$AIF$Method_weights), TRUE, config$Model$AIF$Method_weights)
+taper_weights <- ifelse(is.null(config$Model$AIF$taper_weights), TRUE, config$Model$AIF$taper_weights)
+
 aif_data <- aif_data %>%
   mutate(aif_fit = map(aif, ~blmod_feng(time = .x$time, activity = .x$aif,
-                                       Method = .x$Method)))
+                                       Method = .x$Method,
+                                       weightscheme = weightscheme,
+                                       Method_weights = Method_weights,
+                                       taper_weights = taper_weights)))
 
 # Make Predictions
 mintime <- 0
@@ -1011,7 +1212,7 @@ predtimes <- seq(from=mintime, to=maxtime, length.out=6000)
 aif_data <- aif_data %>%
   mutate(preds = map(aif_fit, ~tibble(
     time = predtimes) %>%
-      mutate(aif = kinfitr:::predict.blood_feng(.x, newdata=list(time=time)))))
+      mutate(aif = predict(.x, newdata=list(time=time)))))
 
 # Plot
 pmap(list(aif_data$aif, aif_data$preds, aif_data$pet), plot_aif_preds)
@@ -1026,16 +1227,29 @@ aif_data <- aif_data %>%
                        C = C*1000)))
 ```
 
-```{r aif-fengconv,echo=do_fengconv, eval=do_fengconv}
+```{r aif-fengconv}
+#| echo: !expr do_fengconv
+#| eval: !expr do_fengconv
 #| fig-height: 4
 #| fig-width: 9
 
 # Extract Data
 aif_data <- bidsdata %>%
   mutate(aif = map(blooddata, ~bd_extract(.x, output="AIF"))) %>%
-  mutate(aif = map(aif, ~.x %>%
-           filter(time >= as.numeric(config$Model$AIF$starttime)*60) %>%
-           filter(time <= as.numeric(config$Model$AIF$endtime)*60))) %>%
+  mutate(aif = map(aif, ~{
+    # Filter out manual samples during continuous sampling if enabled
+    if (exclude_early_manual_aif) {
+      continuous_data <- .x %>% filter(Method == "Continuous")
+      if (nrow(continuous_data) > 0) {
+        max_continuous_time <- max(continuous_data$time, na.rm = TRUE)
+        .x <- .x %>% filter(!(Method == "Discrete" & time <= max_continuous_time))
+      }
+    }
+    # Apply time filtering
+    .x %>%
+      filter(time >= as.numeric(config$Model$AIF$starttime)*60) %>%
+      filter(time <= as.numeric(config$Model$AIF$endtime)*60)
+  })) %>%
   select(pet, aif)
 
 # Fit Model
@@ -1048,15 +1262,26 @@ expdecay_props <- ifelse( is.na(expdecay_props),
 
 inftime <- config$Model$AIF$inftime
 
-if( is.na(inftime) ) {  # Fit inftime completely
+# Set weighting parameters with defaults
+weightscheme <- ifelse(is.null(config$Model$AIF$weightscheme), 2, config$Model$AIF$weightscheme)
+Method_weights <- ifelse(is.null(config$Model$AIF$Method_weights), TRUE, config$Model$AIF$Method_weights)
+taper_weights <- ifelse(is.null(config$Model$AIF$taper_weights), TRUE, config$Model$AIF$taper_weights)
+
+if( is.na(inftime)[1] ) {  # Fit inftime completely
   aif_data <- aif_data %>%
   mutate(aif_fit = map(aif, ~blmod_fengconv(time = .x$time, activity = .x$aif,
-                                       Method = .x$Method )))
+                                       Method = .x$Method,
+                                       weightscheme = weightscheme,
+                                       Method_weights = Method_weights,
+                                       taper_weights = taper_weights)))
 } else {
+  
   aif_data <- aif_data %>%
   mutate(aif_fit = map(aif, ~blmod_fengconv(time = .x$time, activity = .x$aif,
-                                       Method = .x$Method, inftime = inftime
-                                       )))
+                                       Method = .x$Method, inftime = inftime,
+                                       weightscheme = weightscheme,
+                                       Method_weights = Method_weights,
+                                       taper_weights = taper_weights)))
   
 }
 
@@ -1069,7 +1294,7 @@ predtimes <- seq(from=mintime, to=maxtime, length.out=6000)
 aif_data <- aif_data %>%
   mutate(preds = map(aif_fit, ~tibble(
     time = predtimes) %>%
-      mutate(aif = kinfitr:::predict.blood_fengconv(.x, newdata=list(time=time)))))
+      mutate(aif = predict(.x, newdata=list(time=time)))))
 
 # Plot
 pmap(list(aif_data$aif, aif_data$preds, aif_data$pet), plot_aif_preds)
@@ -1086,14 +1311,17 @@ aif_data <- aif_data %>%
 
 
 
-```{r, eval=parametric_aif}
-#| results: asis
+```{r}
+#| eval: !expr parametric_aif
 #| echo: false
+#| results: asis
 
 str_glue("The fitted parameters are shown below.")
 ```
 
-```{r aif-parameters,echo=parametric_aif, eval=parametric_aif}
+```{r aif-parameters}
+#| echo: !expr parametric_aif
+#| eval: !expr parametric_aif
 aif_pars <- aif_data %>% 
   mutate(aif_pars = map(aif_fit, "par")) %>% 
   select(pet, aif_pars)
@@ -1104,30 +1332,51 @@ aif_pars %>%
 ```
 
 
-```{r aif-splines,echo=do_splines, eval=do_splines}
+```{r aif-splines}
+#| echo: !expr do_splines
+#| eval: !expr do_splines
 #| fig-height: 4
 #| fig-width: 9
 
 # Extract Data
 aif_data <- bidsdata %>%
   mutate(aif = map(blooddata, ~bd_extract(.x, output="AIF"))) %>%
-  mutate(aif = map(aif, ~.x %>%
-           filter(time >= as.numeric(config$Model$AIF$starttime)*60) %>%
-           filter(time <= as.numeric(config$Model$AIF$endtime)*60))) %>%
+  mutate(aif = map(aif, ~{
+    # Filter out manual samples during continuous sampling if enabled
+    if (exclude_early_manual_aif) {
+      continuous_data <- .x %>% filter(Method == "Continuous")
+      if (nrow(continuous_data) > 0) {
+        max_continuous_time <- max(continuous_data$time, na.rm = TRUE)
+        .x <- .x %>% filter(!(Method == "Discrete" & time <= max_continuous_time))
+      }
+    }
+    # Apply time filtering
+    .x %>%
+      filter(time >= as.numeric(config$Model$AIF$starttime)*60) %>%
+      filter(time <= as.numeric(config$Model$AIF$endtime)*60)
+  })) %>%
   select(pet, aif)
 
 # Fit Model
 kb <- ifelse(config$Model$AIF$spline_kb == "", yes = 10, 
-             no = config$Model$AIF$spline_kb)
+             no = as.numeric(config$Model$AIF$spline_kb))
 ka_m <- ifelse(config$Model$AIF$spline_ka_m == "", yes = 10, 
-             no = config$Model$AIF$spline_ka_m)
+             no = as.numeric(config$Model$AIF$spline_ka_m))
 ka_a <- ifelse(config$Model$AIF$spline_ka_a == "", yes = 10, 
-             no = config$Model$AIF$spline_ka_a)
+             no = as.numeric(config$Model$AIF$spline_ka_a))
+
+# Set weighting parameters with defaults
+weightscheme <- ifelse(is.null(config$Model$AIF$weightscheme), 2, config$Model$AIF$weightscheme)
+Method_weights <- ifelse(is.null(config$Model$AIF$Method_weights), TRUE, config$Model$AIF$Method_weights)
+taper_weights <- ifelse(is.null(config$Model$AIF$taper_weights), TRUE, config$Model$AIF$taper_weights)
 
 aif_data <- aif_data %>%
   mutate(aif_fit = map(aif, ~blmod_splines(time = .x$time, activity = .x$aif,
                                        Method = .x$Method, k_before = kb,
-                                       k_after_d = ka_m, k_after_c = ka_a)))
+                                       k_after_d = ka_m, k_after_c = ka_a,
+                                       weightscheme = weightscheme,
+                                       Method_weights = Method_weights,
+                                       taper_weights = taper_weights)))
 
 # Make Predictions
 mintime <- 0
@@ -1137,20 +1386,25 @@ predtimes <- seq(from=mintime, to=maxtime, length.out=6000)
 aif_data <- aif_data %>%
   mutate(preds = map(aif_fit, ~tibble(
     time = predtimes) %>%
-      mutate(aif = kinfitr:::predict.blood_splines(.x, newdata=list(time=time)))))
+      mutate(aif = predict(.x, newdata=list(time=time)))))
 
 # Plot
 pmap(list(aif_data$aif, aif_data$preds, aif_data$pet), plot_aif_preds)
 ```
 
-```{r, eval=fit_aif}
-#| results: asis
+```{r}
+#| eval: !expr fit_aif
 #| echo: false
+#| results: asis
 
-str_glue("#### Inserting the predictions")
+str_glue("#### Inserting the predictions
+         
+         Now we insert the model predictions into our blood data.")
 ```
 
-```{r aif-update,echo=fit_aif, eval=fit_aif}
+```{r aif-update}
+#| echo: !expr parametric_aif
+#| eval: !expr parametric_aif
 bidsdata <- inner_join(bidsdata, aif_data) %>% 
   mutate(blooddata = map2(blooddata, aif_fit, 
                           ~bd_addfit(.x, fit = .y,
@@ -1163,8 +1417,29 @@ if("aif_fit" %in% colnames(bidsdata)) {
 ```
 
 
+```{r aif-update_nonpara}
+#| echo: !expr nonparam_aif
+#| eval: !expr nonparam_aif
+bidsdata <- inner_join(bidsdata, aif_data) %>% 
+  mutate(preds = map(preds, ~mutate(.x, 
+                             aif = as.numeric(
+                               ifelse(aif < 0,
+                                          yes = 0,
+                                          no = aif))))) %>% 
+  mutate(blooddata = map2(blooddata, preds, 
+                          ~bd_addfitted(.x, time = .y$time, 
+                                        predicted = as.numeric(.y$aif), 
+                                        modeltype = "AIF"))) %>% 
+  select(-aif, -preds)
 
-```{r aif-config_cleanup, echo=FALSE}
+if("aif_fit" %in% colnames(bidsdata)) {
+  bidsdata <- select(bidsdata, -aif_fit)
+}
+```
+
+
+```{r aif-config_cleanup}
+#| echo: false
 # Cleaning up the config
 if( !do_splines ) {
   config$Model$AIF$spline_kb <- NULL
@@ -1187,6 +1462,17 @@ if( config$Model$AIF$starttime == 0 ) {
 if( config$Model$AIF$endtime == Inf ) {
   config$Model$AIF$endtime <- NULL
 }
+
+# Clean up default weight values (don't save defaults to avoid clutter)
+if( !is.null(config$Model$AIF$weightscheme) && config$Model$AIF$weightscheme == 2 ) {
+  config$Model$AIF$weightscheme <- NULL
+}
+if( !is.null(config$Model$AIF$Method_weights) && config$Model$AIF$Method_weights == TRUE ) {
+  config$Model$AIF$Method_weights <- NULL  
+}
+if( !is.null(config$Model$AIF$taper_weights) && config$Model$AIF$taper_weights == TRUE ) {
+  config$Model$AIF$taper_weights <- NULL
+}
 ```
 
 
@@ -1200,27 +1486,68 @@ The selected modelling approach for modelling the whole blood (WB) data is `r co
 do_splines <-(config$Model$WholeBlood$Method=="Fit Individually: Splines")
 
 fit_wb <- config$Model$WholeBlood$Method != "Interpolation"
+
+exclude_early_manual_wb <- !is.null(config$Model$WholeBlood$exclude_manual_during_continuous) && 
+                           config$Model$WholeBlood$exclude_manual_during_continuous
 ```
 
-```{r wb-splines,echo=do_splines, eval=do_splines}
+```{r wb-exclude-manual}
+#| echo: !expr exclude_early_manual_wb
+#| eval: !expr exclude_early_manual_wb
+
+# Filter out manual samples collected during continuous sampling for Whole Blood
+bidsdata <- bidsdata %>%
+  mutate(blooddata = map(blooddata, function(bd) {
+    wb_data <- bd_extract(bd, output="Blood")
+    
+    # Find the latest continuous sampling time point
+    continuous_data <- wb_data %>% filter(Method == "Continuous")
+    if (nrow(continuous_data) > 0) {
+      max_continuous_time <- max(continuous_data$time, na.rm = TRUE)
+      
+      # Filter out discrete samples before the last continuous sample
+      wb_data_filtered <- wb_data %>%
+        filter(!(Method == "Discrete" & time <= max_continuous_time))
+      
+      # Update the blooddata object with filtered whole blood
+      bd <- bd_addfitted(bd, wb_data_filtered, modelname = "Blood")
+    }
+    return(bd)
+  }))
+```
+
+```{r wb-splines}
+#| echo: !expr do_splines
+#| eval: !expr do_splines
 #| fig-height: 4
 #| fig-width: 9
 
 # Extract Data
 wb_data <- bidsdata %>%
   mutate(wb = map(blooddata, ~bd_extract(.x, output="Blood"))) %>%
-  mutate(wb = map(wb, ~.x %>%
-           filter(time >= as.numeric(config$Model$WholeBlood$starttime)*60) %>%
-           filter(time <= as.numeric(config$Model$WholeBlood$endtime)*60))) %>%
+  mutate(wb = map(wb, ~{
+    # Filter out manual samples during continuous sampling if enabled
+    if (exclude_early_manual_wb) {
+      continuous_data <- .x %>% filter(Method == "Continuous")
+      if (nrow(continuous_data) > 0) {
+        max_continuous_time <- max(continuous_data$time, na.rm = TRUE)
+        .x <- .x %>% filter(!(Method == "Discrete" & time <= max_continuous_time))
+      }
+    }
+    # Apply time filtering
+    .x %>%
+      filter(time >= as.numeric(config$Model$WholeBlood$starttime)*60) %>%
+      filter(time <= as.numeric(config$Model$WholeBlood$endtime)*60)
+  })) %>%
   select(pet, wb)
 
 # Fit Model
 kb <- ifelse(config$Model$WholeBlood$spline_kb == "", yes = 10, 
-             no = config$Model$WholeBlood$spline_kb)
+             no = as.numeric(config$Model$WholeBlood$spline_kb))
 ka_m <- ifelse(config$Model$WholeBlood$spline_ka_m == "", yes = 10, 
-             no = config$Model$WholeBlood$spline_ka_m)
+             no = as.numeric(config$Model$WholeBlood$spline_ka_m))
 ka_a <- ifelse(config$Model$WholeBlood$spline_ka_a == "", yes = 10, 
-             no = config$Model$WholeBlood$spline_ka_a)
+             no = as.numeric(config$Model$WholeBlood$spline_ka_a))
 
 wb_data <- wb_data %>%
   mutate(wb_fit = map(wb, ~blmod_splines(time = .x$time, activity = .x$activity,
@@ -1235,24 +1562,50 @@ predtimes <- seq(from=mintime, to=maxtime, length.out=6000)
 wb_data <- wb_data %>%
   mutate(preds = map(wb_fit, ~tibble(
     time = predtimes) %>%
-      mutate(activity = kinfitr:::predict.blood_splines(.x, newdata=list(time=time)))))
+      mutate(activity = predict(.x, newdata=list(time=time)))))
 
 # Plot
 pmap(list(wb_data$wb, wb_data$preds, wb_data$pet), plot_wb_preds)
 ```
 
-```{r, eval=fit_wb}
-#| results: asis
+```{r}
+#| eval: !expr fit_wb
 #| echo: false
+#| results: asis
 
-str_glue("#### Inserting the predictions")
+str_glue("#### Inserting the predictions
+         
+         Now we insert the model predictions into our blood data.")
 ```
 
-```{r wb-update,echo=fit_wb, eval=fit_wb}
+
+<!-- ```{r wb-update,echo=fit_wb, eval=fit_wb} -->
+<!-- bidsdata <- inner_join(bidsdata, wb_data) %>%  -->
+<!--   mutate(blooddata = map2(blooddata, wb_fit,  -->
+<!--                           ~bd_addfit(.x, fit = .y, -->
+<!--                                         modeltype = "Blood"))) %>%  -->
+<!--   select(-wb, -preds) -->
+
+<!-- if("wb_fit" %in% colnames(bidsdata)) { -->
+<!--   bidsdata <- select(bidsdata, -wb_fit) -->
+<!-- } -->
+<!-- ``` -->
+
+
+```{r wb-update}
+#| echo: !expr fit_wb
+#| eval: !expr fit_wb
+
 bidsdata <- inner_join(bidsdata, wb_data) %>% 
-  mutate(blooddata = map2(blooddata, wb_fit, 
-                          ~bd_addfit(.x, fit = .y,
-                                        modeltype = "AIF"))) %>% 
+  mutate(preds = map(preds, ~mutate(.x, 
+                             activity = as.numeric(
+                               ifelse(activity < 0,
+                                          yes = 0,
+                                          no = activity))))) %>% 
+  mutate(blooddata = map2(blooddata, preds, 
+                          ~bd_addfitted(.x, time = .y$time, 
+                                        predicted = as.numeric(.y$activity), 
+                                        modeltype = "Blood"))) %>% 
   select(-wb, -preds)
 
 if("wb_fit" %in% colnames(bidsdata)) {
@@ -1261,7 +1614,8 @@ if("wb_fit" %in% colnames(bidsdata)) {
 ```
 
 
-```{r wb-config_cleanup, echo=FALSE}
+```{r wb-config_cleanup}
+#| echo: false
 # Cleaning up the config
 if( !do_splines ) {
   config$Model$WholeBlood$spline_kb <- NULL
@@ -1293,26 +1647,29 @@ final_plotting <- any(
 all_interp <- !final_plotting
 ```
 
-```{r, eval=fit_wb}
-#| results: asis
+```{r}
+#| eval: !expr final_plotting
 #| echo: false
+#| results: asis
 
 str_glue("Below are shown the fits to all the blood data after modelling. Inspect these plots to make sure that everything seems fine.")
 ```
 
-```{r final-plotting, fig.height=5, fig.width=10}
-#| warning: false
-#| message: false
+```{r final-plotting}
 #| fig-height: 5
 #| fig-width: 11
+#| out-width: "100%"
+#| eval: !expr final_plotting
+#| echo: !expr final_plotting
 
 map2(bidsdata$blooddata, bidsdata$pet,
      plot_blooddata_extra)
 ```
 
-```{r, eval=all_interp}
-#| results: asis
+```{r}
+#| eval: !expr all_interp
 #| echo: false
+#| results: asis
 
 str_glue("Because no modelling was performed, the final plots are the same as the initial plots.")
 ```
@@ -1321,7 +1678,8 @@ str_glue("Because no modelling was performed, the final plots are the same as th
 
 First, we create the relevant filenames, and delete any files in the relevant folders.
 
-```{r prep-output-filenames, results='hide'}
+```{r prep-output-filenames}
+#| results: hide
 bidsdata <- bidsdata %>% 
   mutate(bloodfilename = map_chr(filedata, ~.x %>% 
                                   filter(measurement == "blood") %>% 
@@ -1334,8 +1692,9 @@ bidsdata <- bidsdata %>%
                                        "_recording-manual_blood.json",
                                        "_inputfunction.tsv"),
          output_folder = dirname(bloodfilename),
-         output_filename = paste0(params$studypath, "/derivatives/bloodstream/",
-                                output_folder, "/", output_basename)) %>% 
+         output_filename = paste0(params$derivatives_dir, "/bloodstream/", 
+                                  params$analysis_foldername, "/",
+                                  output_folder, "/", output_basename)) %>% 
   # Blood json file
   mutate(output_json_filename = str_replace(output_filename, "_inputfunction.tsv",
                                            "_inputfunction.json")) %>% 
@@ -1375,6 +1734,7 @@ bidsdata <- bidsdata %>%
 ... and save the tabular tsv files to the derivatives folder.
 
 ```{r save-tsvs}
+#| warning: false
 walk( dirname(bidsdata$output_filename), 
       dir.create, recursive=T)
 
@@ -1416,14 +1776,17 @@ walk(bidsdata$output_json_filename, ~write_json(output_description, path = .x,
 
 And finally, we include config files describing the models used for each step.
 
-```{r, eval=parametric_aif, echo=parametric_aif}
-#| results: asis
+```{r}
+#| eval: !expr parametric_aif
 #| echo: false
+#| results: asis
 
 str_glue("Because we used a parametric model for the AIF, we will first add the AIF parameters to the output. These parameters are refer to Bq/mL and seconds.")
 ```
 
-```{r save_config_parametricaif, eval=parametric_aif, echo=parametric_aif}
+```{r save_config_parametricaif}
+#| eval: !expr parametric_aif
+#| echo: !expr parametric_aif
 aif_pars <- aif_data %>%
   select(pet, aif_parameters = aif_pars)
 
@@ -1450,7 +1813,9 @@ walk2(bidsdata$output_configdata, bidsdata$output_cfg_filename,
 ```
 
 
-```{r save_config_nonparametric, eval=nonparam_aif, echo=nonparam_aif}
+```{r save_config_nonparametric}
+#| eval: !expr nonparam_aif
+#| echo: !expr nonparam_aif
 output_config <- config$Model
 
 walk(bidsdata$output_cfg_filename, 
@@ -1458,9 +1823,47 @@ walk(bidsdata$output_cfg_filename,
 ```
 
 
+And finally, we save a dataset description file
+
+```{r}
+dataset_description <- list(
+  Name = "bloodstream Outputs",
+  BIDSVersion = "1.7.0",
+  DatasetType = "derivative",
+  GeneratedBy = list(
+    Name = "bloodstream",
+    Version = as.character(packageVersion("bloodstream")),
+    Container = NULL
+  )
+)
+
+jsonlite::write_json(dataset_description, 
+                     path = paste0(params$derivatives_dir, 
+                                   "/bloodstream/", params$analysis_foldername, 
+                                   "/dataset_description.json"),
+                     pretty = T)
+```
+
+
+# Methods
+
+```{r methods-boilerplate}
+#| results: asis
+
+# Build selected_models list for components that used model selection
+selected_models <- list()
+
+if (exists("pf_modelcompare")) {
+  selected_models$ParentFraction <- pf_modelcompare$scores$Model[1]
+}
+
+# Generate methods text with selected model information
+methods_text <- generate_methods_boilerplate(config, selected_models = selected_models)
+str_glue(methods_text)
+```
+
 # Session Info
 
 ```{r sessioninfo}
 sessionInfo()
 ```
-

@@ -1,7 +1,7 @@
 Package: bloodstream
 Type: Package
 Title: PET BIDS Blood Processing Pipeline
-Version: 0.1.0
+Version: 0.2.0
 Author: Granville J. Matheson
 Maintainer: Granville J. Matheson <mathesong@gmail.com>
 Description: bloodstream is a blood processing pipeline which 
@@ -12,15 +12,21 @@ License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
 Imports: 
+    bslib,
     cowplot,
     ggplot2,
     glue,
     gratia,
     jsonlite,
     kinfitr (>= 0.7.1),
+    later,
+    optparse,
     purrr,
     quarto,
     rmarkdown,
+    shiny,
+    shinythemes,
+    stringi,
     stringr,
     tibble,
     tidyr
