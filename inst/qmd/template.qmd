@@ -1849,7 +1849,16 @@ jsonlite::write_json(dataset_description,
 
 ```{r methods-boilerplate}
 #| results: asis
-methods_text <- generate_methods_boilerplate(config)
+
+# Build selected_models list for components that used model selection
+selected_models <- list()
+
+if (exists("pf_modelcompare")) {
+  selected_models$ParentFraction <- pf_modelcompare$scores$Model[1]
+}
+
+# Generate methods text with selected model information
+methods_text <- generate_methods_boilerplate(config, selected_models = selected_models)
 str_glue(methods_text)
 ```
 

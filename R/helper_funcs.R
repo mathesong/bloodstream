@@ -31,71 +31,191 @@ get_filterable_attributes <- function(list) {
 #'
 #' @param config The bloodstream configuration list
 #' @param package_version The version of bloodstream used
+#' @param selected_models A named list indicating which components used AIC-based model selection,
+#'   with the selected model as the value (e.g., list(ParentFraction = "Hill"))
 #' @return A character string containing the formatted methods text
 #' @export
-generate_methods_boilerplate <- function(config, package_version = NULL) {
+generate_methods_boilerplate <- function(config, package_version = NULL, selected_models = NULL) {
 
   # Get package version if not provided
   if (is.null(package_version)) {
     package_version <- utils::packageVersion("bloodstream")
   }
 
-  # Helper function to describe models
-  describe_model <- function(method, component_config = NULL) {
-    switch(method,
+  # Helper function to describe models (without "Fit Individually:" prefix)
+  describe_model_short <- function(method, component_config = NULL) {
+    # Remove "Fit Individually: " or "Fit Hierarchically: " prefix if present
+    method_clean <- sub("^Fit Individually: ", "", method)
+    method_clean <- sub("^Fit Hierarchically: ", "", method_clean)
+
+    switch(method_clean,
       "Interpolation" = "linear interpolation",
-      "Fit Individually: Choose the best-fitting model" = "best-fitting parametric model selection among Hill, exponential, power, sigmoid, inverse gamma, and gamma functions",
-      "Fit Individually: Hill" = "Hill model",
-      "Fit Individually: Exponential" = "exponential decay model",
-      "Fit Individually: Power" = "power function model",
-      "Fit Individually: Sigmoid" = "sigmoid model",
-      "Fit Individually: Inverse Gamma" = "inverse gamma model",
-      "Fit Individually: Gamma" = "gamma model",
-      "Fit Individually: GAM" = {
+      "Choose the best-fitting model" = "best-fitting parametric model selection among Hill, exponential, power, sigmoid, inverse gamma, and gamma functions",
+      "Hill" = "Hill model",
+      "Exponential" = "exponential decay model",
+      "Power" = "power function model",
+      "Sigmoid" = "sigmoid model",
+      "Inverse Gamma" = "inverse gamma model",
+      "Gamma" = "gamma model",
+      "GAM" = {
         k_val <- if (!is.null(component_config$gam_k)) paste0("k=", component_config$gam_k) else "k=6"
         paste0("generalized additive model (GAM) with ", k_val, " basis functions")
       },
-      "Fit Hierarchically: HGAM" = "hierarchical generalized additive model (HGAM)",
-      "Fit Individually: Constant" = "constant model",
-      "Fit Individually: Linear" = "linear model",
-      "Fit Individually: Linear Rise, Triexponential Decay" = "triexponential decay with linear rise",
-      "Fit Individually: Feng" = "Feng model",
-      "Fit Individually: FengConv" = "Feng model with convolution",
-      "Fit Individually: Splines" = "spline-based modeling",
-      method  # fallback to original method name
+      "HGAM" = "hierarchical generalized additive model (HGAM)",
+      "Constant" = "constant model",
+      "Linear" = "linear model",
+      "Linear Rise, Triexponential Decay" = "triexponential decay with linear rise",
+      "Feng" = "Feng model",
+      "FengConv" = "Feng model with convolution",
+      "Splines" = "spline-based modeling",
+      method_clean  # fallback to cleaned method name
     )
   }
 
-  # Generate model descriptions
-  pf_desc <- describe_model(config$Model$ParentFraction$Method, config$Model$ParentFraction)
-  if (!is.null(config$Model$ParentFraction$set_ppf0) && config$Model$ParentFraction$set_ppf0) {
-    pf_desc <- paste0(pf_desc, " with the constraint that the parent fraction is equal to 1 at t=0")
+  # Helper function to check if method is interpolation
+  is_interpolation <- function(method) {
+    grepl("Interpolation", method, ignore.case = TRUE)
   }
 
-  bpr_desc <- describe_model(config$Model$BPR$Method, config$Model$BPR)
-  aif_desc <- describe_model(config$Model$AIF$Method, config$Model$AIF)
-  wb_desc <- describe_model(config$Model$WholeBlood$Method, config$Model$WholeBlood)
+  # Component names for readable output
+  component_names <- list(
+    ParentFraction = "parent fraction",
+    BPR = "blood-to-plasma ratio",
+    AIF = "arterial input function",
+    WholeBlood = "whole blood"
+  )
 
-  # Add dispersion correction note for whole blood if applicable
-  if (!is.null(config$Model$WholeBlood$dispcor) && config$Model$WholeBlood$dispcor) {
-    wb_desc <- paste0(wb_desc, " with dispersion correction")
+  # Build component descriptions
+  components <- list(
+    ParentFraction = list(
+      config = config$Model$ParentFraction,
+      method = config$Model$ParentFraction$Method,
+      name = component_names$ParentFraction,
+      selected = !is.null(selected_models$ParentFraction)
+    ),
+    BPR = list(
+      config = config$Model$BPR,
+      method = config$Model$BPR$Method,
+      name = component_names$BPR,
+      selected = !is.null(selected_models$BPR)
+    ),
+    AIF = list(
+      config = config$Model$AIF,
+      method = config$Model$AIF$Method,
+      name = component_names$AIF,
+      selected = !is.null(selected_models$AIF)
+    ),
+    WholeBlood = list(
+      config = config$Model$WholeBlood,
+      method = config$Model$WholeBlood$Method,
+      name = component_names$WholeBlood,
+      selected = !is.null(selected_models$WholeBlood)
+    )
+  )
+
+  # Categorize components
+  selected_comps <- list()
+  modeled_comps <- list()
+  interpolated_comps <- list()
+
+  for (comp_name in names(components)) {
+    comp <- components[[comp_name]]
+
+    if (comp$selected) {
+      selected_comps[[comp_name]] <- comp
+    } else if (is_interpolation(comp$method)) {
+      interpolated_comps[[comp_name]] <- comp
+    } else {
+      modeled_comps[[comp_name]] <- comp
+    }
   }
 
-  # Generate the boilerplate text
+  # Build the methods text
+  processing_sentences <- c()
+
+  # 1. Model selection components
+  if (length(selected_comps) > 0) {
+    for (comp_name in names(selected_comps)) {
+      comp <- selected_comps[[comp_name]]
+      selected_model <- selected_models[[comp_name]]
+      model_desc <- describe_model_short(selected_model, comp$config)
+
+      # Add special constraints/notes
+      extra_note <- ""
+      if (comp_name == "ParentFraction") {
+        if (!is.null(comp$config$set_ppf0) && comp$config$set_ppf0) {
+          extra_note <- " with the constraint that the parent fraction is equal to 1 at t=0"
+        }
+      } else if (comp_name == "WholeBlood") {
+        if (!is.null(comp$config$dispcor) && comp$config$dispcor) {
+          extra_note <- " with dispersion correction"
+        }
+      }
+
+      sentence <- paste0("Model selection based on AIC was performed for ", comp$name,
+                        ", and the ", model_desc, " was selected", extra_note, ".")
+      processing_sentences <- c(processing_sentences, sentence)
+    }
+  }
+
+  # 2. Directly modeled components
+  if (length(modeled_comps) > 0) {
+    for (comp_name in names(modeled_comps)) {
+      comp <- modeled_comps[[comp_name]]
+      model_desc <- describe_model_short(comp$method, comp$config)
+
+      # Add special constraints/notes
+      extra_note <- ""
+      if (comp_name == "ParentFraction") {
+        if (!is.null(comp$config$set_ppf0) && comp$config$set_ppf0) {
+          extra_note <- " with the constraint that the parent fraction is equal to 1 at t=0"
+        }
+      } else if (comp_name == "WholeBlood") {
+        if (!is.null(comp$config$dispcor) && comp$config$dispcor) {
+          extra_note <- " with dispersion correction"
+        }
+      }
+
+      # Use appropriate verb based on component
+      verb <- if (comp_name == "BPR") "was estimated" else "was modeled"
+
+      sentence <- paste0(stringr::str_to_sentence(comp$name), " ", verb,
+                        " using ",
+                        ifelse(grepl("^[aeiou]", model_desc), "an ", "a "),
+                        model_desc, extra_note, ".")
+      processing_sentences <- c(processing_sentences, sentence)
+    }
+  }
+
+  # 3. Interpolated components
+  if (length(interpolated_comps) > 0) {
+    interp_names <- sapply(interpolated_comps, function(x) x$name)
+
+    if (length(interp_names) == 1) {
+      interp_text <- interp_names[1]
+    } else if (length(interp_names) == 2) {
+      interp_text <- paste(interp_names, collapse = " and ")
+    } else {
+      interp_text <- paste(paste(interp_names[-length(interp_names)], collapse = ", "),
+                          "and", interp_names[length(interp_names)])
+    }
+
+    sentence <- paste0("Linear interpolation was used for the ", interp_text, ".")
+    processing_sentences <- c(processing_sentences, sentence)
+  }
+
+  # Combine all sentences
+  processing_text <- paste(processing_sentences, collapse = " ")
+
+  # Generate the final boilerplate text
   methods_text <- paste0(
-    "## Methods\n\n",
     "You can use the following text to describe the results of this analysis.\n\n",
+    "**Blood data processing:** ",
     "Blood data preprocessing was performed using *bloodstream* ", package_version, ", ",
-    "which is based on *kinfitr* (Matheson, 2019; Tjerkaski et al., 2020).\n\n",
-    "**Blood data processing:** Blood samples were processed as follows. ",
-    "Parent fraction data were modeled using ", pf_desc, ". ",
-    "Blood-to-plasma ratio was estimated using ", bpr_desc, ". ",
-    "Arterial input function was processed using ", aif_desc, ". ",
-    "Whole blood data were processed using ", wb_desc, ". ",
-    ".\n\n",
-    "For more details of the pipeline, see the bloodstream documentation at [https://github.com/mathesong/bloodstream](https://github.com/mathesong/bloodstream).\n\n",
+    "which is based on *kinfitr* (Matheson, 2019; Tjerkaski et al., 2020). ",
+    processing_text, "\n\n",
     "### Copyright Waiver\n\n",
-    "The above boilerplate text was automatically generated by bloodstream so that users can copy and paste this text into their manuscripts. It is released under the [CC0](https://creativecommons.org/publicdomain/zero/1.0/) license."
+    "The above boilerplate text was automatically generated by bloodstream so that users can copy and paste this text into their manuscripts if they wish. It is released under the [CC0](https://creativecommons.org/publicdomain/zero/1.0/) license."
   )
 
   return(methods_text)

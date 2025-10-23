@@ -4,12 +4,19 @@
 \alias{generate_methods_boilerplate}
 \title{Generate methods boilerplate text for manuscript reporting}
 \usage{
-generate_methods_boilerplate(config, package_version = NULL)
+generate_methods_boilerplate(
+  config,
+  package_version = NULL,
+  selected_models = NULL
+)
 }
 \arguments{
 \item{config}{The bloodstream configuration list}
 
 \item{package_version}{The version of bloodstream used}
+
+\item{selected_models}{A named list indicating which components used AIC-based model selection,
+with the selected model as the value (e.g., list(ParentFraction = "Hill"))}
 }
 \value{
 A character string containing the formatted methods text
