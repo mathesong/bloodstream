@@ -205,6 +205,14 @@ for(i in 1:nrow(bidsdata)) {
 ```
 
 
+Now we remove measurements which are missing blood
+
+```{r}
+bidsdata <- bidsdata %>% 
+    filter(map_lgl(blooddata, ~class(.x) == "blooddata"))
+```
+
+
 ## Quality Control
 
 #### Parent Fraction
