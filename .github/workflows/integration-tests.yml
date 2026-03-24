@@ -1,0 +1,128 @@
+name: Integration Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      run_docker:
+        description: 'Run Docker tests'
+        type: boolean
+        default: true
+      run_singularity:
+        description: 'Run Singularity tests'
+        type: boolean
+        default: true
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  r-native:
+    name: R-native integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      BLOODSTREAM_INTEGRATION_TESTS: "true"
+      BLOODSTREAM_INTEGRATION_CACHE: /tmp/bloodstream_integration
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+      R_KEEP_PKG_SOURCE: yes
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+
+      - uses: quarto-dev/quarto-actions/setup@v2
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          extra-packages: any::testthat, any::withr, any::here, any::devtools, any::remotes
+          needs: testing
+
+      - name: Install bloodstream package
+        run: |
+          Rscript -e "devtools::install('.', dependencies = FALSE)"
+
+      - name: Run integration tests
+        run: |
+          Rscript -e "devtools::test(filter = 'integration', stop_on_failure = TRUE)"
+
+  docker:
+    name: Docker integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      BLOODSTREAM_INTEGRATION_TESTS: "true"
+      BLOODSTREAM_DOCKER_TESTS: "true"
+      BLOODSTREAM_INTEGRATION_CACHE: /tmp/bloodstream_integration
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+      R_KEEP_PKG_SOURCE: yes
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+
+      - uses: quarto-dev/quarto-actions/setup@v2
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          extra-packages: any::testthat, any::withr, any::here, any::devtools, any::remotes
+          needs: testing
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        run: |
+          docker build -f docker/dockerfile -t mathesong/bloodstream:latest . --platform linux/amd64
+
+      - name: Run Docker integration tests
+        run: |
+          Rscript -e "devtools::test(filter = 'integration.*docker', stop_on_failure = TRUE)"
+
+  singularity:
+    name: Singularity integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      BLOODSTREAM_INTEGRATION_TESTS: "true"
+      BLOODSTREAM_SINGULARITY_TESTS: "true"
+      BLOODSTREAM_INTEGRATION_CACHE: /tmp/bloodstream_integration
+      GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+      R_KEEP_PKG_SOURCE: yes
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+
+      - uses: quarto-dev/quarto-actions/setup@v2
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          extra-packages: any::testthat, any::withr, any::here, any::devtools, any::remotes
+          needs: testing
+
+      - uses: eWaterCycle/setup-apptainer@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        run: |
+          docker build -f docker/dockerfile -t mathesong/bloodstream:latest . --platform linux/amd64
+
+      - name: Run Singularity integration tests
+        run: |
+          Rscript -e "devtools::test(filter = 'integration.*singularity', stop_on_failure = TRUE)"

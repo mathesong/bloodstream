@@ -52,6 +52,16 @@ RUN chown -R ${USER_ID}:${GROUP_ID} /app
 # Create data directory and set permissions
 RUN mkdir -p /data && chown -R ${USER_ID}:${GROUP_ID} /data
 
+# Make Quarto's Deno tools directory world-writable so any UID can create the
+# TypeScript compiler cache (gen/).  Quarto 1.3.x's launcher script overwrites
+# the DENO_DIR env-var with a local variable, so setting ENV DENO_DIR is not
+# effective — we must fix permissions on the actual directory instead.
+RUN chmod -R a+rwX /opt/quarto/bin/tools/deno-x86_64-unknown-linux-gnu
+
+# Writable home/cache for non-root users (needed for --user and Apptainer)
+ENV XDG_CACHE_HOME=/tmp/.cache
+ENV HOME=/tmp
+
 # Switch to non-root user
 USER ${USER_ID}:${GROUP_ID}
 

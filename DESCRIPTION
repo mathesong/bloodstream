@@ -1,7 +1,7 @@
 Package: bloodstream
 Type: Package
 Title: PET BIDS Blood Processing Pipeline
-Version: 0.2.0
+Version: 0.2.1
 Author: Granville J. Matheson
 Maintainer: Granville J. Matheson <mathesong@gmail.com>
 Description: bloodstream is a blood processing pipeline which 
@@ -30,8 +30,13 @@ Imports:
     stringr,
     tibble,
     tidyr
-Depends: 
+Suggests:
+    testthat (>= 3.0.0),
+    withr,
+    here
+Depends:
     tidyverse
+Config/testthat/edition: 3
 RoxygenNote: 7.3.2
-Remotes: 
+Remotes:
     mathesong/kinfitr

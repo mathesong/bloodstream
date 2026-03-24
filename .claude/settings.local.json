@@ -9,7 +9,8 @@
       "Read(//home/granville/Repositories/kinfitr_app/docker/**)",
       "Read(//home/granville/Repositories/bloodstream_config/**)",
       "Bash(R:*)",
-      "Bash(./docker/run_bloodstream.R:*)"
+      "Bash(./docker/run_bloodstream.R:*)",
+      "Bash(docker run:*)"
     ],
     "deny": [],
     "ask": []
