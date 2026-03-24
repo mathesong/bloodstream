@@ -190,7 +190,7 @@ if (opt$mode == "interactive") {
     
     # Create a temporary directory for Quarto template processing
     # This is crucial for Docker permission handling
-    temp_dir <- file.path("/app", "temp_qmd")
+    temp_dir <- file.path(tempdir(), "temp_qmd")
     dir.create(temp_dir, showWarnings = FALSE, recursive = TRUE)
     
     # Copy the Quarto template to the writable temp directory
