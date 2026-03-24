@@ -1069,7 +1069,7 @@ fit_aif <- config$Model$AIF$Method != "Interpolation"
 parametric_aif <- any(do_triexp, do_feng, do_fengconv)
 nonparam_aif <- do_splines
 
-exclude_early_manual_aif <- !is.null(config$Model$AIF$exclude_manual_during_continuous) && 
+exclude_early_manual_aif <- !is.null(config$Model$AIF$exclude_manual_during_continuous) &&
                             config$Model$AIF$exclude_manual_during_continuous
 ```
 
@@ -1096,6 +1096,63 @@ bidsdata <- bidsdata %>%
     }
     return(bd)
   }))
+```
+
+Below we save the raw arterial input function values — computed from the modelled parent fraction and blood-to-plasma ratio, but **before** any AIF curve fitting.
+
+```{r aif-raw-output}
+#| echo: true
+
+# Extract raw AIF data (after PF and BPR modeling, before AIF modeling)
+aif_raw_data <- bidsdata %>%
+  mutate(aif_raw = map(blooddata, ~bd_extract(.x, output = "AIF", what = "pred"))) %>%
+  mutate(aif_raw = map(aif_raw, ~.x %>%
+    rename(
+      "whole_blood_radioactivity" = blood,
+      "recording" = Method,
+      "blood_plasma_ratio" = bpr,
+      "metabolite_parent_fraction" = parentFraction,
+      "plasma_radioactivity" = plasma_uncor,
+      "AIF" = aif
+    ) %>%
+    mutate(
+      whole_blood_radioactivity = unit_convert(whole_blood_radioactivity, "kBq", "Bq"),
+      plasma_radioactivity = unit_convert(plasma_radioactivity, "kBq", "Bq"),
+      AIF = unit_convert(AIF, "kBq", "Bq"),
+      recording = case_when(
+        recording == "Continuous" ~ "autosampler",
+        recording == "Discrete" ~ "manual",
+        TRUE ~ recording
+      )
+    ) %>%
+    select(time, recording, whole_blood_radioactivity, plasma_radioactivity,
+           blood_plasma_ratio, metabolite_parent_fraction, AIF)
+  )) %>%
+  select(pet, aif_raw)
+
+# Build output filenames
+aif_raw_filenames <- bidsdata %>%
+  mutate(bloodfilename = map_chr(filedata, ~.x %>%
+    filter(measurement == "blood") %>%
+    filter(str_detect(path, "manual_blood.json")) %>%
+    slice(1) %>%
+    pull(path))) %>%
+  mutate(
+    output_basename = basename(bloodfilename),
+    output_basename = str_replace(output_basename,
+      "_recording-manual_blood.json",
+      "_desc-aifraw_timeseries.tsv"),
+    output_folder = dirname(bloodfilename),
+    aifraw_tsv_filename = paste0(params$derivatives_dir, "/bloodstream/",
+      params$analysis_foldername, "/",
+      output_folder, "/", output_basename),
+    aifraw_json_filename = str_replace(aifraw_tsv_filename,
+      "_desc-aifraw_timeseries.tsv",
+      "_desc-aifraw_timeseries.json")
+  ) %>%
+  select(pet, aifraw_tsv_filename, aifraw_json_filename)
+
+aif_raw_data <- inner_join(aif_raw_data, aif_raw_filenames, by = "pet")
 ```
 
 ```{r aif-triexp}
@@ -1713,6 +1770,13 @@ bidsdata <- bidsdata %>%
 file.remove(bidsdata$output_filename)
 file.remove(bidsdata$output_json_filename)
 file.remove(bidsdata$output_cfg_filename)
+
+# Also remove aifraw files from previous runs
+aifraw_cleanup <- bidsdata %>%
+  mutate(aifraw_tsv = str_replace(output_filename, "_inputfunction.tsv", "_desc-aifraw_timeseries.tsv"),
+         aifraw_json = str_replace(output_filename, "_inputfunction.tsv", "_desc-aifraw_timeseries.json"))
+suppressWarnings(file.remove(aifraw_cleanup$aifraw_tsv))
+suppressWarnings(file.remove(aifraw_cleanup$aifraw_json))
 ```
 
 
@@ -1748,8 +1812,12 @@ walk( dirname(bidsdata$output_filename),
 
 # Save interpolated tsv files
 walk2(bidsdata$input,
-     bidsdata$output_filename, ~write_delim(.x, file=.y, 
+     bidsdata$output_filename, ~write_delim(.x, file=.y,
                                             delim = "\t"))
+
+# Save raw AIF tsv files
+walk2(aif_raw_data$aif_raw, aif_raw_data$aifraw_tsv_filename,
+  ~write_delim(.x, file = .y, delim = "\t"))
 ```
 
 
@@ -1778,6 +1846,42 @@ output_description <- list(
 # Save interpolated json sidecars
 walk(bidsdata$output_json_filename, ~write_json(output_description, path = .x,
                                                 pretty=TRUE))
+
+# Save raw AIF json sidecars
+aifraw_description <- list(
+  time = list(
+    Description = "Time of blood sample in relation to time zero defined in _pet.json",
+    Units = "s"
+  ),
+  recording = list(
+    Description = "Blood sampling method",
+    Levels = list(
+      autosampler = "Continuous blood sampling via autosampler",
+      manual = "Discrete manual blood samples"
+    )
+  ),
+  whole_blood_radioactivity = list(
+    Description = "Radioactivity in whole blood samples",
+    Units = "Bq"
+  ),
+  plasma_radioactivity = list(
+    Description = "Radioactivity in plasma samples before metabolite correction",
+    Units = "Bq"
+  ),
+  blood_plasma_ratio = list(
+    Description = "Modelled ratio of whole blood to plasma radioactivity"
+  ),
+  metabolite_parent_fraction = list(
+    Description = "Modelled fraction of unchanged parent compound in plasma"
+  ),
+  AIF = list(
+    Description = "Arterial input function: metabolite-corrected arterial plasma radioactivity before AIF model fitting",
+    Units = "Bq"
+  )
+)
+
+walk(aif_raw_data$aifraw_json_filename,
+     ~write_json(aifraw_description, path = .x, pretty = TRUE))
 ```
 
 
