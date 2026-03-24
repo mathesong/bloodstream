@@ -108,8 +108,8 @@ Bind your BIDS dataset and a writable derivatives directory to the container. If
 
 ```bash
 apptainer run \
-  -B /path/to/bids:/data/bids_dir:ro \
-  -B /path/to/derivatives:/data/derivatives_dir:rw \
+  --bind /path/to/bids:/data/bids_dir:ro \
+  --bind /path/to/derivatives:/data/derivatives_dir:rw \
   bloodstream.sif
 ```
 
@@ -121,9 +121,9 @@ To run with model fitting, bind a configuration file to `/config.json`:
 
 ```bash
 apptainer run \
-  -B /path/to/bids:/data/bids_dir:ro \
-  -B /path/to/derivatives:/data/derivatives_dir:rw \
-  -B /path/to/config.json:/config.json:ro \
+  --bind /path/to/bids:/data/bids_dir:ro \
+  --bind /path/to/derivatives:/data/derivatives_dir:rw \
+  --bind /path/to/config.json:/config.json:ro \
   bloodstream.sif
 ```
 
@@ -131,9 +131,9 @@ apptainer run \
 
 ```bash
 apptainer run \
-  -B /path/to/bids:/data/bids_dir:ro \
-  -B /path/to/derivatives:/data/derivatives_dir:rw \
-  -B /path/to/config.json:/config.json:ro \
+  --bind /path/to/bids:/data/bids_dir:ro \
+  --bind /path/to/derivatives:/data/derivatives_dir:rw \
+  --bind /path/to/config.json:/config.json:ro \
   bloodstream.sif --analysis_foldername "my_analysis"
 ```
 
