@@ -7,8 +7,8 @@
 bloodstream_config_app(
   bids_dir = NULL,
   derivatives_dir = NULL,
-  config_file = NULL,
-  analysis_folder = "default",
+  configpath = NULL,
+  analysis_foldername = "Primary_Analysis",
   host = "127.0.0.1",
   port = 3838
 )
@@ -18,9 +18,9 @@ bloodstream_config_app(
 
 \item{derivatives_dir}{Character string path to the derivatives directory (default: NULL)}
 
-\item{config_file}{Character string path to existing config file to load (default: NULL)}
+\item{configpath}{Character string path to existing config file to load (default: NULL)}
 
-\item{analysis_folder}{Character string name for analysis subfolder (default: "default")}
+\item{analysis_foldername}{Character string name for analysis subfolder (default: "Primary_Analysis")}
 
 \item{host}{Character string host address for the Shiny server (default: "127.0.0.1")}
 

@@ -123,10 +123,10 @@ if (opt$mode == "interactive") {
   # Launch bloodstream config app interactively
   cat("Attempting to launch Shiny app...\n")
   tryCatch({
-    launch_bloodstream_app(
+    bloodstream_interactive(
       bids_dir = dirs$bids_dir,
       derivatives_dir = dirs$derivatives_dir,
-      config_file = config_for_app,
+      configpath = config_for_app,
       analysis_foldername = analysis_folder,
       host = "0.0.0.0",  # Important for Docker
       port = 3838

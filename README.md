@@ -29,8 +29,8 @@ For a short introduction to processing blood data for PET, as well as tutorial f
 |------|---------|--------------|
 | Run without config | `bloodstream(bids_dir)` → linear interpolation | `docker run ...` → linear interpolation |
 | Run with config | `bloodstream(bids_dir, configpath)` → fits models | `docker run -v my_config.json:/config.json ...` → fits models |
-| Launch config app (standalone) | `launch_bloodstream_app()` → design and download config | `docker run -p 3838:3838 ... --mode interactive` → design and download config |
-| Launch config app (with data) | `launch_bloodstream_app(bids_dir = "/path/to/study")` → design, run, or linear interpolation | `docker run -p 3838:3838 -v /path/to/bids:/data/bids_dir:ro -v /path/to/derivatives:/data/derivatives_dir:rw ... --mode interactive` → design, run, or linear interpolation |
+| Launch config app (standalone) | `bloodstream_interactive()` → design and download config | `docker run -p 3838:3838 ... --mode interactive` → design and download config |
+| Launch config app (with data) | `bloodstream_interactive(bids_dir = "/path/to/study")` → design, run, or linear interpolation | `docker run -p 3838:3838 -v /path/to/bids:/data/bids_dir:ro -v /path/to/derivatives:/data/derivatives_dir:rw ... --mode interactive` → design, run, or linear interpolation |
 | Run pipeline after config | Use saved config with `bloodstream()` | Use saved config with Docker run |
 
 
@@ -81,19 +81,19 @@ You can launch the interactive configuration interface directly from R:
 library(bloodstream)
 
 # Standalone config creation (no BIDS data needed)
-launch_bloodstream_app()
+bloodstream_interactive()
 
 # With BIDS directory (enables pipeline execution, auto-derives derivatives)
-launch_bloodstream_app(bids_dir = "/path/to/study")
+bloodstream_interactive(bids_dir = "/path/to/study")
 
 # With separate BIDS and derivatives directories
-launch_bloodstream_app(bids_dir = "/path/to/study", derivatives_dir = "/path/to/derivatives")
+bloodstream_interactive(bids_dir = "/path/to/study", derivatives_dir = "/path/to/derivatives")
 
 # Load existing config for modification
-launch_bloodstream_app(bids_dir = "/path/to/study", config_file = "/path/to/config.json")
+bloodstream_interactive(bids_dir = "/path/to/study", configpath = "/path/to/config.json")
 
 # Custom analysis folder name
-launch_bloodstream_app(bids_dir = "/path/to/study", analysis_foldername = "my_analysis")
+bloodstream_interactive(bids_dir = "/path/to/study", analysis_foldername = "my_analysis")
 ```
 
 The interactive app allows you to:  
