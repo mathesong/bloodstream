@@ -45,15 +45,6 @@ jobs:
           extra-packages: any::testthat, any::withr, any::here, any::devtools, any::remotes
           needs: testing
 
-      - name: Download test data
-        run: |
-          mkdir -p tests/testthat/fixtures/integration
-          gh release download testdata-v1.0 --repo mathesong/petfit \
-            --pattern 'ds004869_testdata.tar.gz' \
-            --dir tests/testthat/fixtures/integration/
-        env:
-          GH_TOKEN: ${{ github.token }}
-
       - name: Run integration tests
         run: |
           Rscript -e "devtools::test(filter = 'integration')"
@@ -89,15 +80,6 @@ jobs:
       - name: Build Docker image
         run: |
           docker build -f docker/dockerfile -t mathesong/bloodstream:latest . --platform linux/amd64
-
-      - name: Download test data
-        run: |
-          mkdir -p tests/testthat/fixtures/integration
-          gh release download testdata-v1.0 --repo mathesong/petfit \
-            --pattern 'ds004869_testdata.tar.gz' \
-            --dir tests/testthat/fixtures/integration/
-        env:
-          GH_TOKEN: ${{ github.token }}
 
       - name: Run Docker integration tests
         run: |
@@ -136,15 +118,6 @@ jobs:
       - name: Build Docker image
         run: |
           docker build -f docker/dockerfile -t mathesong/bloodstream:latest . --platform linux/amd64
-
-      - name: Download test data
-        run: |
-          mkdir -p tests/testthat/fixtures/integration
-          gh release download testdata-v1.0 --repo mathesong/petfit \
-            --pattern 'ds004869_testdata.tar.gz' \
-            --dir tests/testthat/fixtures/integration/
-        env:
-          GH_TOKEN: ${{ github.token }}
 
       - name: Run Singularity integration tests
         run: |
