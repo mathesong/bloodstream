@@ -45,6 +45,10 @@ jobs:
           extra-packages: any::testthat, any::withr, any::here, any::devtools, any::remotes
           needs: testing
 
+      - name: Install bloodstream package
+        run: |
+          Rscript -e "devtools::install('.', dependencies = FALSE)"
+
       - name: Run integration tests
         run: |
           Rscript -e "devtools::test(filter = 'integration', stop_on_failure = TRUE)"
