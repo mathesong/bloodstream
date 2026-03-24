@@ -1,161 +1,165 @@
-# Plan: Output raw AIF timeseries before AIF modeling
+# Plan: Integration Tests for bloodstream
 
 ## Context
-Users who want to apply their own AIF models need the pre-modeling AIF data — i.e., the arterial input function values computed from the fitted parent fraction and BPR models, but *before* any AIF curve fitting. This change adds a TSV + JSON sidecar output of that raw AIF data early in the AIF section of the pipeline.
 
-## File to modify
-- `inst/qmd/template.qmd` (the active template; `R/run_bloodstream.R:77` uses QMD, not the old RMD)
+The bloodstream package has **no tests or CI** currently. The sibling package `petfit` has a comprehensive integration test suite with R-native, Docker, and Singularity tests using real PET data from ds004869. We'll replicate that pattern for bloodstream.
 
-## Changes
+The ds004869 test data tarball (2.7MB, from petfit's GitHub release `testdata-v1.0`) contains 54 blood files (27 subjects × 2 sessions) with `_blood.tsv` + `_blood.json` pairs — suitable for all bloodstream components (parent fraction, BPR, AIF, whole blood).
 
-### 1. Add raw AIF extraction + save chunk
+---
 
-**Insert location:** After the `aif-setup` chunk (line ~1074), before `aif-exclude-manual` (line ~1076). This ensures the raw data is saved before any AIF filtering or modeling occurs.
+## Files to Create/Modify
 
-**Add a markdown header and new code chunk** that:
+### 1. `DESCRIPTION` — Add Suggests and testthat edition
 
-1. Extracts AIF data via `bd_extract(blooddata, output = "AIF", what = "pred")`
-2. Renames columns to BIDS-consistent names:
-   - `time` → `time` (convert min→sec, ×60)
-   - `blood` → `whole_blood_radioactivity` (convert kBq→Bq via `unit_convert()`)
-   - `Method` → `recording` (map "Continuous"→"autosampler", "Discrete"→"manual")
-   - `bpr` → `blood_plasma_ratio`
-   - `parentFraction` → `metabolite_parent_fraction`
-   - `plasma_uncor` → `plasma_radioactivity` (convert kBq→Bq via `unit_convert()`)
-   - `aif` → `AIF` (convert kBq→Bq via `unit_convert()`)
-3. Constructs output filename using the same pattern as `_inputfunction.tsv` but ending in `_desc-AIFraw_timeseries.tsv`
-4. Saves TSV files
-5. Saves JSON sidecar (`_desc-AIFraw_timeseries.json`) with column descriptions and units
+Add:
+```
+Suggests:
+    testthat (>= 3.0.0),
+    withr,
+    here
+Config/testthat/edition: 3
+```
 
-**Markdown text before the chunk:**
-> Below we save the raw arterial input function data — computed from the modelled parent fraction and blood-to-plasma ratio, but **before** any AIF curve fitting. This allows users who wish to apply their own AIF models to start from the metabolite-corrected plasma data directly.
+### 2. `.Rbuildignore` — Exclude test fixtures and CI
 
-**New chunk to insert (between line 1074 `\`\`\`` and line 1076 `\`\`\`{r aif-exclude-manual}`):**
+Append:
+```
+^tests/testthat/fixtures$
+^\.github$
+^CLAUDE\.md$
+```
+
+### 3. `tests/testthat.R` — Standard testthat runner
 
 ```r
-```{r aif-raw-output}
-#| echo: false
-
-# Extract raw AIF data (after PF and BPR modeling, before AIF modeling)
-aif_raw_data <- bidsdata %>%
-  mutate(aif_raw = map(blooddata, ~bd_extract(.x, output = "AIF", what = "pred"))) %>%
-  mutate(aif_raw = map(aif_raw, ~.x %>%
-    rename(
-      "whole_blood_radioactivity" = blood,
-      "recording" = Method,
-      "blood_plasma_ratio" = bpr,
-      "metabolite_parent_fraction" = parentFraction,
-      "plasma_radioactivity" = plasma_uncor,
-      "AIF" = aif
-    ) %>%
-    mutate(
-      time = time * 60,  # min to sec
-      whole_blood_radioactivity = unit_convert(whole_blood_radioactivity, "kBq", "Bq"),
-      plasma_radioactivity = unit_convert(plasma_radioactivity, "kBq", "Bq"),
-      AIF = unit_convert(AIF, "kBq", "Bq"),
-      recording = case_when(
-        recording == "Continuous" ~ "autosampler",
-        recording == "Discrete" ~ "manual",
-        TRUE ~ recording
-      )
-    )
-  )) %>%
-  select(pet, aif_raw)
-
-# Build output filenames
-aif_raw_filenames <- bidsdata %>%
-  mutate(bloodfilename = map_chr(filedata, ~.x %>%
-    filter(measurement == "blood") %>%
-    filter(str_detect(path, "manual_blood.json")) %>%
-    slice(1) %>%
-    pull(path))) %>%
-  mutate(
-    output_basename = basename(bloodfilename),
-    output_basename = str_replace(output_basename,
-      "_recording-manual_blood.json",
-      "_desc-AIFraw_timeseries.tsv"),
-    output_folder = dirname(bloodfilename),
-    aifraw_tsv_filename = paste0(params$derivatives_dir, "/bloodstream/",
-      params$analysis_foldername, "/",
-      output_folder, "/", output_basename),
-    aifraw_json_filename = str_replace(aifraw_tsv_filename,
-      "_desc-AIFraw_timeseries.tsv",
-      "_desc-AIFraw_timeseries.json")
-  ) %>%
-  select(pet, aifraw_tsv_filename, aifraw_json_filename)
-
-aif_raw_data <- inner_join(aif_raw_data, aif_raw_filenames, by = "pet")
-
-# Create directories and save TSV files
-walk(dirname(aif_raw_data$aifraw_tsv_filename),
-     dir.create, recursive = TRUE, showWarnings = FALSE)
-walk2(aif_raw_data$aif_raw, aif_raw_data$aifraw_tsv_filename,
-  ~write_delim(.x, file = .y, delim = "\t"))
-
-# Save JSON sidecars
-aifraw_description <- list(
-  time = list(
-    Description = "Time of blood sample in relation to time zero defined in _pet.json",
-    Units = "s"
-  ),
-  whole_blood_radioactivity = list(
-    Description = "Radioactivity in whole blood samples",
-    Units = "Bq"
-  ),
-  recording = list(
-    Description = "Blood sampling method",
-    Levels = list(
-      autosampler = "Continuous blood sampling via autosampler",
-      manual = "Discrete manual blood samples"
-    )
-  ),
-  blood_plasma_ratio = list(
-    Description = "Modelled ratio of whole blood to plasma radioactivity"
-  ),
-  metabolite_parent_fraction = list(
-    Description = "Modelled fraction of unchanged parent compound in plasma"
-  ),
-  plasma_radioactivity = list(
-    Description = "Radioactivity in plasma samples before metabolite correction",
-    Units = "Bq"
-  ),
-  AIF = list(
-    Description = "Arterial input function: metabolite-corrected arterial plasma radioactivity before AIF model fitting",
-    Units = "Bq"
-  )
-)
-
-walk(aif_raw_data$aifraw_json_filename,
-     ~write_json(aifraw_description, path = .x, pretty = TRUE))
-```
+library(testthat)
+library(bloodstream)
+test_check("bloodstream")
 ```
 
-### 2. Add cleanup of AIFraw files in the output section
-
-**Insert location:** In the output section (~line 1713-1715), after the existing `file.remove()` calls for `output_filename`, `output_json_filename`, and `output_cfg_filename`.
-
-**Code to add:**
+### 4. `tests/testthat/helper-setup.R` — Basic setup
 
 ```r
-# Also remove AIFraw files from previous runs
-aifraw_cleanup <- bidsdata %>%
-  mutate(aifraw_tsv = str_replace(output_filename, "_inputfunction.tsv", "_desc-AIFraw_timeseries.tsv"),
-         aifraw_json = str_replace(output_filename, "_inputfunction.tsv", "_desc-AIFraw_timeseries.json"))
-suppressWarnings(file.remove(aifraw_cleanup$aifraw_tsv))
-suppressWarnings(file.remove(aifraw_cleanup$aifraw_json))
+library(here)
 ```
 
-## Key design decisions
-- **Recording column values**: "Continuous" → "autosampler", "Discrete" → "manual" (matches BIDS `_recording-` entity convention)
-- **Unit conversions**: Same as existing outputs — min→sec (×60), kBq→Bq (via `unit_convert()`)
-- **Column names**: Consistent with existing `_inputfunction.tsv` output (`whole_blood_radioactivity`, `plasma_radioactivity`, `metabolite_parent_fraction`, `AIF`) plus `recording` and `blood_plasma_ratio`
-- **Filename pattern**: Uses `_desc-AIFraw_timeseries.tsv` suffix as requested, derived from the same base filename as `_inputfunction.tsv`
+### 5. `tests/testthat/helper-integration.R` — Core test infrastructure (~300 lines)
+
+Adapted from `/home/granville/Repositories/petfit/tests/testthat/helper-integration.R`.
+
+**Key components:**
+
+- **Constants**: `DOCKER_IMAGE = "mathesong/bloodstream:latest"`, GitHub repo/tag for test data download from `mathesong/petfit` release `testdata-v1.0`
+- **Skip functions**: `skip_if_no_integration()` (checks `BLOODSTREAM_INTEGRATION_TESTS`), `skip_if_no_docker()` (checks `BLOODSTREAM_DOCKER_TESTS` + docker CLI), `skip_if_no_singularity()` (checks `BLOODSTREAM_SINGULARITY_TESTS` + apptainer/singularity CLI)
+- **Test data management**: `get_integration_cache_dir()`, `find_testdata_tarball()` (env var → local fixtures → GitHub release download), `ensure_testdata()` (extract once with sentinel file)
+- **Workspace management**: `create_integration_workspace(dataset_dir)` → creates temp dir with writable `derivatives/` subdir, returns `list(bids_dir, derivatives_dir, workspace)`. `cleanup_workspace()` via `unlink()`. Simpler than petfit — no petprep symlink needed.
+- **Config helper**: `get_config_fixture(name)` → returns `test_path("fixtures", "integration", name)`
+- **Docker runner**: `run_bloodstream_docker(ws, config_path, analysis_foldername, image)` — builds `docker run --rm --user UID:GID -v bids:/data/bids_dir:ro -v derivs:/data/derivatives_dir:rw [-v config:/config.json:ro] image [--analysis_foldername name]`. Returns `list(output, exit_code)`.
+- **Singularity runner**: `run_bloodstream_singularity(ws, container, config_path, analysis_foldername)` — uses `--cleanenv --bind`. Auto-detects `apptainer` vs `singularity`.
+- **Container helpers**: `ensure_docker_image()`, `get_singularity_cmd()`, `find_singularity_container()` (env var → docker-daemon reference)
+
+### 6. Config Fixtures (2 JSON files in `tests/testthat/fixtures/integration/`)
+
+**`ds004869_bloodstream_interpolation_config.json`**: Default config with `sub: ["01;02"]` subset — interpolation for all components. Produces 4 measurements (2 subjects × 2 sessions). Fastest possible run.
+
+**`ds004869_bloodstream_fitting_config.json`**: Same subset, but `ParentFraction.Method: ["Fit Individually: Hill"]`. Tests model fitting path.
+
+### 7. `tests/testthat/test-integration-dataset.R` — Validate test data
+
+Tests (all gated by `skip_if_no_integration()`):
+- Test data extracts successfully (dataset_dir, participants.tsv, dataset_description.json exist)
+- 54 `_blood.tsv` files found
+- Blood TSV parseable with expected columns (time, plasma_radioactivity, metabolite_parent_fraction, whole_blood_radioactivity)
+- Blood JSON sidecars are valid JSON
+- Subject/session structure matches expectations (sub-01 has ses-baseline + ses-blocked)
+- Workspace creation and cleanup works
+
+### 8. `tests/testthat/test-integration-pipeline.R` — R-native pipeline tests
+
+Tests (all gated by `skip_if_no_integration()`):
+
+1. **Pipeline succeeds with interpolation config** — runs `bloodstream()`, checks:
+   - `bloodstream_report.html` exists
+   - `bloodstream_config.json` exists
+   - `dataset_description.json` exists
+   - 4 `_inputfunction.tsv` files (recursive search)
+   - 4 `_inputfunction.json` files
+   - 4 `_config.json` files
+   - 4 `_desc-AIFraw_timeseries.tsv` files
+   - 4 `_desc-AIFraw_timeseries.json` files
+
+2. **inputfunction TSV has expected columns** — reads one TSV, checks columns: time, whole_blood_radioactivity, plasma_radioactivity, metabolite_parent_fraction, AIF. Checks nrow > 0.
+
+3. **AIFraw TSV has expected columns** — reads one TSV, checks columns: time, recording, whole_blood_radioactivity, plasma_radioactivity, blood_plasma_ratio, metabolite_parent_fraction, AIF
+
+4. **Pipeline succeeds with model fitting config** — Hill model for PF. Same output count validation.
+
+5. **Custom analysis_foldername works** — outputs land in correct subfolder
+
+6. **Fails gracefully with invalid bids_dir** — `expect_error()`
+
+7. **Fails gracefully with invalid config** — `expect_error()`
+
+### 9. `tests/testthat/test-integration-docker.R` — Docker container tests
+
+Tests (gated by `skip_if_no_docker()`):
+
+1. **Non-interactive mode with interpolation config** — exit code 0, 4 output files
+2. **Non-interactive mode with fitting config** — exit code 0, 4 output files
+3. **Custom analysis_foldername** — outputs in correct folder
+4. **Output contains expected log markers** — "bloodstream Docker Container", "Non-Interactive Mode", "pipeline completed successfully"
+5. **Fails without bids_dir mount** — non-zero exit code
+
+### 10. `tests/testthat/test-integration-singularity.R` — Singularity tests
+
+Tests (gated by `skip_if_no_singularity()`):
+
+1. **Non-interactive mode with interpolation config** — exit code 0, correct outputs
+2. **Non-interactive mode with fitting config** — exit code 0, correct outputs
+3. **Custom analysis_foldername** — outputs in correct folder
+
+No `.def` file needed — uses `docker-daemon:mathesong/bloodstream:latest` reference for on-the-fly conversion.
+
+### 11. `.github/workflows/integration-tests.yml` — GHA workflow
+
+**Triggers**: push/PR to main, workflow_dispatch with `run_docker` and `run_singularity` boolean inputs.
+
+**Concurrency**: cancel-in-progress per PR/branch.
+
+**3 parallel jobs:**
+
+| Job | Timeout | Key Steps | Env Vars |
+|-----|---------|-----------|----------|
+| `r-native` | 60min | checkout, setup-r, quarto-actions/setup, install bloodstream, download testdata via `gh release download testdata-v1.0 --repo mathesong/petfit`, run `devtools::test(filter='integration')` | `BLOODSTREAM_INTEGRATION_TESTS=true`, `BLOODSTREAM_INTEGRATION_CACHE=/tmp/bloodstream_integration` |
+| `docker` | 90min | + Docker Buildx, build image (`docker/dockerfile`), run `devtools::test(filter='integration.*docker')` | + `BLOODSTREAM_DOCKER_TESTS=true` |
+| `singularity` | 90min | + eWaterCycle/setup-apptainer@v2, build Docker image, run `devtools::test(filter='integration.*singularity')` | + `BLOODSTREAM_SINGULARITY_TESTS=true` |
+
+Test data download step (shared across all jobs):
+```yaml
+- name: Download test data
+  run: |
+    mkdir -p tests/testthat/fixtures/integration
+    gh release download testdata-v1.0 --repo mathesong/petfit \
+      --pattern 'ds004869_testdata.tar.gz' \
+      --dir tests/testthat/fixtures/integration/
+  env:
+    GH_TOKEN: ${{ github.token }}
+```
+
+---
+
+## Key Design Decisions
+
+1. **Test data NOT committed** to bloodstream repo — downloaded from petfit's GitHub release at CI time. Local devs set `BLOODSTREAM_TESTDATA_PATH` or place tarball manually.
+2. **No Singularity .def file** — apptainer converts Docker image via `docker-daemon:` reference.
+3. **Subset to 2 subjects** (4 measurements) for speed.
+4. **Quarto required** for R-native tests — GHA uses `quarto-dev/quarto-actions/setup@v2`.
+
+---
 
 ## Verification
-1. Run the bloodstream pipeline on test data and confirm:
-   - `_desc-AIFraw_timeseries.tsv` files are created alongside `_inputfunction.tsv`
-   - Columns are: `time`, `whole_blood_radioactivity`, `recording`, `blood_plasma_ratio`, `metabolite_parent_fraction`, `plasma_radioactivity`, `AIF`
-   - Units are seconds and Bq (not minutes/kBq)
-   - `recording` values are "autosampler"/"manual" (not "Continuous"/"Discrete")
-   - JSON sidecar describes all columns
-2. Verify the AIF raw data appears in the output *before* any AIF model fitting in the report
+
+1. **Local R-native test**: `BLOODSTREAM_INTEGRATION_TESTS=true Rscript -e "devtools::test(filter='integration')"` (requires Quarto + test data)
+2. **Local Docker test**: Build image, then `BLOODSTREAM_INTEGRATION_TESTS=true BLOODSTREAM_DOCKER_TESTS=true Rscript -e "devtools::test(filter='integration.*docker')"`
+3. **GHA**: Push to branch, open PR against main — all 3 jobs should pass
