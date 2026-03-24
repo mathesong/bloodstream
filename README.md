@@ -272,7 +272,53 @@ docker run -v /Users/mn/mystudy:/data/ bloodstream
 and all your outputs will be in `/Users/mn/my_study/derivatives/bloodstream`.
 -->
 
+## Apptainer
 
+`bloodstream` can also be run using [Apptainer](https://apptainer.org/) (formerly Singularity), which is often preferred on HPC (high-performance computing) systems.  
+The Apptainer image can be built directly from the existing Docker image, or downloaded and used as-is.
+
+### Build or pull the image
+
+To build the container from Docker Hub and save it as a local `.sif` file:
+
+```bash
+apptainer build bloodstream.sif docker://mathesong/bloodstream:latest
+```
+
+### Running bloodstream (no config file)
+
+Bind your BIDS dataset and a writable derivatives directory to the container. If no configuration file is provided, bloodstream will default to using linear interpolation only.
+
+```bash
+apptainer run \
+  --bind /path/to/bids:/data/bids_dir:ro \
+  --bind /path/to/derivatives:/data/derivatives_dir:rw \
+  bloodstream.sif
+```
+
+All outputs will be stored in `/path/to/derivatives/bloodstream/Primary_Analysis/`.
+
+### Running with a configuration file
+
+To run with model fitting, bind a configuration file to `/config.json`:
+
+```bash
+apptainer run \
+  --bind /path/to/bids:/data/bids_dir:ro \
+  --bind /path/to/derivatives:/data/derivatives_dir:rw \
+  --bind /path/to/config.json:/config.json:ro \
+  bloodstream.sif
+```
+
+### Custom analysis folder name
+
+```bash
+apptainer run \
+  --bind /path/to/bids:/data/bids_dir:ro \
+  --bind /path/to/derivatives:/data/derivatives_dir:rw \
+  --bind /path/to/config.json:/config.json:ro \
+  bloodstream.sif --analysis_foldername "my_analysis"
+```
 
 ## Citation
 
