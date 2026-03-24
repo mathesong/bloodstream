@@ -59,11 +59,17 @@ Adapted from `/home/granville/Repositories/petfit/tests/testthat/helper-integrat
 - **Singularity runner**: `run_bloodstream_singularity(ws, container, config_path, analysis_foldername)` — uses `--cleanenv --bind`. Auto-detects `apptainer` vs `singularity`.
 - **Container helpers**: `ensure_docker_image()`, `get_singularity_cmd()`, `find_singularity_container()` (env var → docker-daemon reference)
 
-### 6. Config Fixtures (2 JSON files in `tests/testthat/fixtures/integration/`)
+### 6. Config Fixtures (3 JSON files in `tests/testthat/fixtures/integration/`)
 
 **`ds004869_bloodstream_interpolation_config.json`**: Default config with `sub: ["01;02"]` subset — interpolation for all components. Produces 4 measurements (2 subjects × 2 sessions). Fastest possible run.
 
 **`ds004869_bloodstream_fitting_config.json`**: Same subset, but `ParentFraction.Method: ["Fit Individually: Hill"]`. Tests model fitting path.
+
+**`ds004869_bloodstream_hgam_config.json`**: Subset of 10 subjects (`sub: ["01;02;03;04;05;06;07;08;09;10"]`) with hierarchical GAM fitting for both parent fraction and BPR. Modelled after the KaSP_UCBJ Primary_Analysis config (`/mnt/data/BIDS/KaSP_UCBJ/derivatives/bloodstream/Primary_Analysis/bloodstream_config.json`). Tests the hierarchical modelling path end-to-end, which exercises `mgcv` and `gratia` — packages that update frequently and could introduce regressions. Config details:
+- `ParentFraction.Method: ["Fit Hierarchically: HGAM"]`, `set_ppf0: true`, `hgam_formula: "s(log(time), k=8) + s(log(time), pet, bs='fs', k=5)"`, `gam_k: "6"`
+- `BPR.Method: ["Fit Hierarchically: HGAM"]`, `hgam_formula: "s(time, k=8) + s(time, pet, bs='fs', k=5)"`, `gam_k: 6`
+- AIF and WholeBlood: Interpolation (same as other configs)
+- Produces 20 measurements (10 subjects × 2 sessions)
 
 ### 7. `tests/testthat/test-integration-dataset.R` — Validate test data
 
@@ -95,11 +101,21 @@ Tests (all gated by `skip_if_no_integration()`):
 
 4. **Pipeline succeeds with model fitting config** — Hill model for PF. Same output count validation.
 
-5. **Custom analysis_foldername works** — outputs land in correct subfolder
+5. **Pipeline succeeds with HGAM config** — hierarchical GAM for PF and BPR across 10 subjects. Checks:
+   - `bloodstream_report.html` exists
+   - `bloodstream_config.json` exists
+   - 20 `_inputfunction.tsv` files (10 subjects × 2 sessions)
+   - 20 `_inputfunction.json` files
+   - 20 `_config.json` files
+   - 20 `_desc-AIFraw_timeseries.tsv` files
+   - 20 `_desc-AIFraw_timeseries.json` files
+   - This is the primary regression guard for `mgcv`/`gratia` updates
 
-6. **Fails gracefully with invalid bids_dir** — `expect_error()`
+6. **Custom analysis_foldername works** — outputs land in correct subfolder
 
-7. **Fails gracefully with invalid config** — `expect_error()`
+7. **Fails gracefully with invalid bids_dir** — `expect_error()`
+
+8. **Fails gracefully with invalid config** — `expect_error()`
 
 ### 9. `tests/testthat/test-integration-docker.R` — Docker container tests
 
@@ -107,9 +123,10 @@ Tests (gated by `skip_if_no_docker()`):
 
 1. **Non-interactive mode with interpolation config** — exit code 0, 4 output files
 2. **Non-interactive mode with fitting config** — exit code 0, 4 output files
-3. **Custom analysis_foldername** — outputs in correct folder
-4. **Output contains expected log markers** — "bloodstream Docker Container", "Non-Interactive Mode", "pipeline completed successfully"
-5. **Fails without bids_dir mount** — non-zero exit code
+3. **Non-interactive mode with HGAM config** — exit code 0, 20 output files
+4. **Custom analysis_foldername** — outputs in correct folder
+5. **Output contains expected log markers** — "bloodstream Docker Container", "Non-Interactive Mode", "pipeline completed successfully"
+6. **Fails without bids_dir mount** — non-zero exit code
 
 ### 10. `tests/testthat/test-integration-singularity.R` — Singularity tests
 
@@ -117,7 +134,8 @@ Tests (gated by `skip_if_no_singularity()`):
 
 1. **Non-interactive mode with interpolation config** — exit code 0, correct outputs
 2. **Non-interactive mode with fitting config** — exit code 0, correct outputs
-3. **Custom analysis_foldername** — outputs in correct folder
+3. **Non-interactive mode with HGAM config** — exit code 0, 20 output files
+4. **Custom analysis_foldername** — outputs in correct folder
 
 No `.def` file needed — uses `docker-daemon:mathesong/bloodstream:latest` reference for on-the-fly conversion.
 
