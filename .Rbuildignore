@@ -2,3 +2,7 @@
 ^\.Rproj\.user$
 ^LICENSE\.md$
 ^docker*
+^tests/testthat/fixtures$
+^\.github$
+^CLAUDE\.md$
+^plan\.md$
