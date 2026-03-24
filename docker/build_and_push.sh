@@ -3,7 +3,7 @@
 cd ..
 
 # Set version
-VERSION="v0.2.0"
+VERSION="v0.2.1"
 
 # Build with version tag
 docker build -f docker/dockerfile -t mathesong/bloodstream:${VERSION} . --platform linux/amd64
