@@ -47,7 +47,7 @@ jobs:
 
       - name: Run integration tests
         run: |
-          Rscript -e "devtools::test(filter = 'integration')"
+          Rscript -e "devtools::test(filter = 'integration', stop_on_failure = TRUE)"
 
   docker:
     name: Docker integration tests
@@ -83,7 +83,7 @@ jobs:
 
       - name: Run Docker integration tests
         run: |
-          Rscript -e "devtools::test(filter = 'integration.*docker')"
+          Rscript -e "devtools::test(filter = 'integration.*docker', stop_on_failure = TRUE)"
 
   singularity:
     name: Singularity integration tests
@@ -121,4 +121,4 @@ jobs:
 
       - name: Run Singularity integration tests
         run: |
-          Rscript -e "devtools::test(filter = 'integration.*singularity')"
+          Rscript -e "devtools::test(filter = 'integration.*singularity', stop_on_failure = TRUE)"

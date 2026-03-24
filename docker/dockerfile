@@ -52,6 +52,9 @@ RUN chown -R ${USER_ID}:${GROUP_ID} /app
 # Create data directory and set permissions
 RUN mkdir -p /data && chown -R ${USER_ID}:${GROUP_ID} /data
 
+# Set writable cache directory for Quarto/Deno (needed for non-root and Apptainer)
+ENV DENO_DIR=/tmp/deno
+
 # Switch to non-root user
 USER ${USER_ID}:${GROUP_ID}
 
