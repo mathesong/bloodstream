@@ -55,8 +55,8 @@ devtools::document()
 # Test different execution modes
 bloodstream(bids_dir = "/path/to/study")  # Default config
 bloodstream(bids_dir = "/path/to/study", configpath = "/path/to/config.json")  # Custom config
-launch_bloodstream_app()  # Standalone config creation
-launch_bloodstream_app(bids_dir = "/path/to/study")  # With data
+bloodstream_interactive()  # Standalone config creation
+bloodstream_interactive(bids_dir = "/path/to/study")  # With data
 ```
 
 ### Docker Development
@@ -127,7 +127,7 @@ The package uses JSON configuration files to specify:
 ### Key Functions
 - `bloodstream()`: Main pipeline function with flexible parameters (bids_dir, configpath, derivatives_dir, analysis_foldername, template_path)
 - `bloodstream_config_app()`: Interactive Shiny configuration interface with conditional pipeline execution
-- `launch_bloodstream_app()`: Enhanced app launcher supporting multiple execution modes (standalone, with study path, with separate directories)
+- `bloodstream_interactive()`: Enhanced app launcher supporting multiple execution modes (standalone, with study path, with separate directories)
 - `compare_aic_metabmodels_*()`: Model comparison for parent fraction
 - `plot_*_preds()`: Visualization functions for each blood component  
 - `qc_*()`: Quality control validation functions

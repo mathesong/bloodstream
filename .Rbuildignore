@@ -6,3 +6,4 @@
 ^\.github$
 ^CLAUDE\.md$
 ^plan\.md$
+docs/*

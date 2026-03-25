@@ -6,8 +6,8 @@
 #'
 #' @param bids_dir Character string path to the BIDS directory (default: NULL)
 #' @param derivatives_dir Character string path to the derivatives directory (default: NULL)
-#' @param config_file Character string path to existing config file to load (default: NULL)
-#' @param analysis_folder Character string name for analysis subfolder (default: "default")
+#' @param configpath Character string path to existing config file to load (default: NULL)
+#' @param analysis_foldername Character string name for analysis subfolder (default: "Primary_Analysis")
 #' @param host Character string host address for the Shiny server (default: "127.0.0.1")
 #' @param port Integer port number for the Shiny server (default: 3838)
 #'
@@ -22,7 +22,7 @@
 #' and a final tab for downloading the config and running the pipeline.
 #'
 #' @export
-bloodstream_config_app <- function(bids_dir = NULL, derivatives_dir = NULL, config_file = NULL, analysis_folder = "default", host = "127.0.0.1", port = 3838) {
+bloodstream_config_app <- function(bids_dir = NULL, derivatives_dir = NULL, configpath = NULL, analysis_foldername = "Primary_Analysis", host = "127.0.0.1", port = 3838) {
   
   
   # Function to generate new filename
@@ -295,7 +295,7 @@ bloodstream_config_app <- function(bids_dir = NULL, derivatives_dir = NULL, conf
                 h3("Config Creation Mode"),
                 p("No BIDS directory provided. You can create and download configuration files, but cannot run the pipeline directly from this interface."),
                 p("To run the pipeline, use the downloaded config with:", style = "font-family: monospace; background-color: #f8f9fa; padding: 10px; border-left: 3px solid #007bff;"),
-                tags$code("bloodstream(studypath, configpath)"), br(), br()
+                tags$code("bloodstream(bids_dir, configpath)"), br(), br()
               )
             ),
             
@@ -314,7 +314,7 @@ bloodstream_config_app <- function(bids_dir = NULL, derivatives_dir = NULL, conf
     
     # Set up directory paths
     derivatives_path <- derivatives_dir %||% (if (!is.null(bids_dir)) file.path(bids_dir, "derivatives") else NULL)
-    analysis_path <- if (!is.null(derivatives_path)) file.path(derivatives_path, "bloodstream", analysis_folder) else NULL
+    analysis_path <- if (!is.null(derivatives_path)) file.path(derivatives_path, "bloodstream", analysis_foldername) else NULL
     
     # Check if pipeline can be run (need at least bids_dir)
     output$bids_dir_available <- reactive({
@@ -323,10 +323,10 @@ bloodstream_config_app <- function(bids_dir = NULL, derivatives_dir = NULL, conf
     outputOptions(output, "bids_dir_available", suspendWhenHidden = FALSE)
     
     # Load existing config if provided and update inputs
-    if (!is.null(config_file) && file.exists(config_file)) {
+    if (!is.null(configpath) && file.exists(configpath)) {
       tryCatch({
-        config_data <- jsonlite::fromJSON(config_file)
-        cat("Loading config from:", config_file, "\n")
+        config_data <- jsonlite::fromJSON(configpath)
+        cat("Loading config from:", configpath, "\n")
         
         # Update subset inputs  
         updateTextInput(session, "subset_sub", value = config_data$Subsets$sub %||% "")
@@ -494,15 +494,15 @@ bloodstream_config_app <- function(bids_dir = NULL, derivatives_dir = NULL, conf
                         type = "message", duration = NULL, id = "processing_pipeline")
         
         # Save config to temporary file
-        temp_config_file <- tempfile(fileext = ".json")
-        writeLines(config_json(), temp_config_file)
+        temp_configpath <- tempfile(fileext = ".json")
+        writeLines(config_json(), temp_configpath)
         
         # Run pipeline in background
         tryCatch({
           
           # Run the pipeline
-          result <- bloodstream(bids_dir = bids_dir, configpath = temp_config_file, 
-                               derivatives_dir = derivatives_dir, analysis_foldername = analysis_folder)
+          result <- bloodstream(bids_dir = bids_dir, configpath = temp_configpath, 
+                               derivatives_dir = derivatives_dir, analysis_foldername = analysis_foldername)
           
           # Remove processing notification and show success
           removeNotification("processing_pipeline")
@@ -510,7 +510,7 @@ bloodstream_config_app <- function(bids_dir = NULL, derivatives_dir = NULL, conf
                           type = "message", duration = 5)
           
           # Clean up temp file
-          unlink(temp_config_file)
+          unlink(temp_configpath)
           
           # Auto-close the app after successful completion
           later::later(function() {
@@ -523,7 +523,7 @@ bloodstream_config_app <- function(bids_dir = NULL, derivatives_dir = NULL, conf
           removeNotification("processing_pipeline")
           showNotification(paste("Pipeline failed with error:", e$message), 
                           type = "error", duration = 10)
-          unlink(temp_config_file)
+          unlink(temp_configpath)
         })
       }
     })
@@ -547,10 +547,10 @@ bloodstream_config_app <- function(bids_dir = NULL, derivatives_dir = NULL, conf
   if (!is.null(derivatives_dir)) {
     cat("Derivatives directory:", derivatives_dir, "\n")
   }
-  if (!is.null(config_file)) {
-    cat("Loading config file:", config_file, "\n")
+  if (!is.null(configpath)) {
+    cat("Loading config file:", configpath, "\n")
   }
-  cat("Analysis folder:", analysis_folder, "\n")
+  cat("Analysis folder:", analysis_foldername, "\n")
   cat("App will be available at: http://", host, ":", port, "\n", sep = "")
   
   

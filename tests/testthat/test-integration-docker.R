@@ -106,6 +106,52 @@ test_that("Docker: output contains expected log markers", {
               info = "Missing 'pipeline completed successfully' marker")
 })
 
+test_that("Docker: non-interactive mode fails with helpful message when derivatives_dir is not writable", {
+  skip_if_no_docker()
+  ensure_docker_image()
+
+  dataset_dir <- ensure_testdata()
+  ws <- create_integration_workspace(dataset_dir)
+  on.exit(cleanup_workspace(ws))
+
+  # Create a root-owned directory to simulate what Docker does when the host
+
+  # path doesn't exist: it creates the mount point owned by root, which is
+  # unwritable when --user is passed.
+  unwritable_dir <- file.path(ws$workspace, "unwritable_derivatives")
+  dir.create(unwritable_dir, recursive = TRUE)
+  Sys.chmod(unwritable_dir, mode = "0555")
+
+  config_path <- get_config_fixture("ds004869_bloodstream_interpolation_config.json")
+
+  docker_args <- c(
+    "run", "--rm",
+    "--user", paste0(as.integer(system("id -u", intern = TRUE)), ":",
+                     as.integer(system("id -g", intern = TRUE))),
+    "-v", paste0(ws$bids_dir, ":/data/bids_dir:ro"),
+    "-v", paste0(unwritable_dir, ":/data/derivatives_dir:rw"),
+    "-v", paste0(normalizePath(config_path), ":/config.json:ro"),
+    DOCKER_IMAGE
+  )
+
+  result <- suppressWarnings(
+    system2("docker", docker_args, stdout = TRUE, stderr = TRUE)
+  )
+  exit_code <- attr(result, "status") %||% 0L
+
+  expect_true(exit_code != 0L,
+              info = "Expected non-zero exit code with unwritable derivatives_dir")
+
+  output_text <- paste(result, collapse = "\n")
+  expect_true(grepl("not writable", output_text),
+              info = "Error should mention the directory is not writable")
+  expect_true(grepl("mkdir -p", output_text),
+              info = "Error should include mkdir instruction for the user")
+
+  # Restore permissions for cleanup
+  Sys.chmod(unwritable_dir, mode = "0755")
+})
+
 test_that("Docker: fails without bids_dir mount", {
   skip_if_no_docker()
   ensure_docker_image()

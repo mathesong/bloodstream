@@ -62,6 +62,19 @@ detect_mounted_directories <- function() {
       stop("Non-interactive mode requires derivatives_dir to be mounted with read-write access at /data/derivatives_dir", call.=FALSE)
     }
   }
+
+  # Check that derivatives_dir is writable (Docker creates root-owned dirs for
+  # non-existent host paths, which causes permission errors later)
+  if (derivatives_available && file.access("/data/derivatives_dir", mode = 2) != 0) {
+    stop(paste0(
+      "The derivatives directory at /data/derivatives_dir is not writable.\n",
+      "This usually happens when the host directory does not exist before mounting.\n",
+      "Docker creates missing mount paths as root, making them unwritable.\n\n",
+      "To fix this, create the directory on the host before running the container:\n\n",
+      "  mkdir -p /path/to/derivatives\n",
+      "  docker run ... -v /path/to/derivatives:/data/derivatives_dir:rw ...\n"
+    ), call.=FALSE)
+  }
   
   # Set directory paths based on what's available
   bids_dir <- if(bids_available) "/data/bids_dir" else NULL
@@ -123,10 +136,10 @@ if (opt$mode == "interactive") {
   # Launch bloodstream config app interactively
   cat("Attempting to launch Shiny app...\n")
   tryCatch({
-    launch_bloodstream_app(
+    bloodstream_interactive(
       bids_dir = dirs$bids_dir,
       derivatives_dir = dirs$derivatives_dir,
-      config_file = config_for_app,
+      configpath = config_for_app,
       analysis_foldername = analysis_folder,
       host = "0.0.0.0",  # Important for Docker
       port = 3838
