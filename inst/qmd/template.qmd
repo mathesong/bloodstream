@@ -1092,7 +1092,7 @@ bidsdata <- bidsdata %>%
         filter(!(Method == "Discrete" & time <= max_continuous_time))
       
       # Update the blooddata object with filtered AIF
-      bd <- bd_addfitted(bd, aif_data_filtered, modelname = "AIF")
+      bd <- bd_addfitted(bd, time = aif_data_filtered$time, predicted = aif_data_filtered$aif, modeltype = "AIF")
     }
     return(bd)
   }))
@@ -1575,7 +1575,7 @@ bidsdata <- bidsdata %>%
         filter(!(Method == "Discrete" & time <= max_continuous_time))
       
       # Update the blooddata object with filtered whole blood
-      bd <- bd_addfitted(bd, wb_data_filtered, modelname = "Blood")
+      bd <- bd_addfitted(bd, time = wb_data_filtered$time, predicted = wb_data_filtered$activity, modeltype = "Blood")
     }
     return(bd)
   }))
