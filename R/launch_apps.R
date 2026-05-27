@@ -29,6 +29,19 @@ bloodstream_interactive <- function(bids_dir = NULL, derivatives_dir = NULL, con
     derivatives_dir <- file.path(bids_dir, "derivatives")
   }
 
+  # Auto-load existing bloodstream_config.json from the analysis folder if no
+  # configpath was supplied. This is the canonical record of what generated the
+  # data in that folder (written by bloodstream() on every successful run), so
+  # picking it up here lets users resume without re-entering settings.
+  if (is.null(configpath) && !is.null(derivatives_dir)) {
+    candidate <- file.path(derivatives_dir, "bloodstream",
+                           analysis_foldername, "bloodstream_config.json")
+    if (file.exists(candidate)) {
+      configpath <- candidate
+      cat("Auto-detected existing config in analysis folder:", configpath, "\n")
+    }
+  }
+
   # Print configuration
   cat("Launching bloodstream app with configuration:\n")
   if (!is.null(bids_dir)) {
