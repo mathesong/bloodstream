@@ -18,7 +18,7 @@ Imports:
     glue,
     gratia,
     jsonlite,
-    kinfitr (>= 0.7.1),
+    kinfitr (>= 0.9.1),
     later,
     optparse,
     purrr,
@@ -35,6 +35,7 @@ Suggests:
     withr,
     here
 Depends:
+    R (>= 3.5.0),
     tidyverse
 Config/testthat/edition: 3
 RoxygenNote: 7.3.2

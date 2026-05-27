@@ -23,13 +23,13 @@ This is a standard R package with the following key components:
 - **Plotting**: `R/plotting.R` contains visualization functions for different blood components
 - **Quality Control**: `R/qc.R` contains validation functions for blood processing results
 - **Utilities**: `R/helper_funcs.R` and `R/subsetting.R` contain helper functions
-- **Templates**: `inst/rmd/template.rmd` is the R Markdown template for generating reports
+- **Templates**: `inst/qmd/template.qmd` is the Quarto template for generating reports
 - **Configuration**: `inst/extdata/config.json` provides default configuration settings
 
 ## Key Dependencies
 
 The package depends on several key R packages:
-- `kinfitr` (>= 0.7.1) - Core PET pharmacokinetic modelling functions
+- `kinfitr` (>= 0.9.1) - Core PET pharmacokinetic modelling functions
 - `tidyverse` - Data manipulation and visualization
 - `shiny`, `shinythemes`, `bslib` - Interactive web interface
 - `optparse` - Command-line argument parsing for Docker
@@ -135,7 +135,7 @@ The package uses JSON configuration files to specify:
 
 ## Report Template
 
-The R Markdown template (`inst/rmd/template.rmd`) generates comprehensive reports including:
+The Quarto template (`inst/qmd/template.qmd`) generates comprehensive reports including:
 - Model fitting results and comparisons
 - Before/after plots for each blood component
 - Quality control metrics

@@ -35,6 +35,9 @@
       "spline_kb": [""],
       "spline_ka_m": [""],
       "spline_ka_a": [""],
+      "spline_monotone_before": [true],
+      "spline_monotone_after_m": [false],
+      "spline_monotone_after_a": [false],
       "weightscheme": [2],
       "Method_weights": [true],
       "taper_weights": [true],
@@ -48,7 +51,13 @@
       "endtime": ["Inf"],
       "spline_kb": [""],
       "spline_ka_m": [""],
-      "spline_ka_a": [""]
+      "spline_ka_a": [""],
+      "spline_monotone_before": [true],
+      "spline_monotone_after_m": [false],
+      "spline_monotone_after_a": [false],
+      "weightscheme": [2],
+      "Method_weights": [true],
+      "taper_weights": [true]
     }
   }
 }

@@ -1038,7 +1038,13 @@ weightscheme_display <- ifelse(is.null(config$Model$AIF$weightscheme), 2, config
 method_weights_display <- ifelse(is.null(config$Model$AIF$Method_weights), TRUE, config$Model$AIF$Method_weights)
 taper_weights_display <- ifelse(is.null(config$Model$AIF$taper_weights), TRUE, config$Model$AIF$taper_weights)
 
-weight_scheme_text <- ifelse(weightscheme_display == 1, "Uniform weighting", "Time/activity weighting (Method 2)")
+weight_scheme_text <- switch(as.character(weightscheme_display),
+                              "1" = "Uniform weighting",
+                              "2" = "Time/activity weighting (Method 2)",
+                              "3" = "Magnitude weighting |activity| (3)",
+                              "4" = "Magnitude weighting sqrt(|activity|) (4)",
+                              "5" = "Magnitude weighting activity^2 (5)",
+                              paste("Weight scheme", weightscheme_display))
 ```
 
 ```{r aif-weighting-info}
@@ -1435,10 +1441,22 @@ weightscheme <- ifelse(is.null(config$Model$AIF$weightscheme), 2, config$Model$A
 Method_weights <- ifelse(is.null(config$Model$AIF$Method_weights), TRUE, config$Model$AIF$Method_weights)
 taper_weights <- ifelse(is.null(config$Model$AIF$taper_weights), TRUE, config$Model$AIF$taper_weights)
 
+# Translate monotone checkboxes to basis spline types.
+# Use if/else (not ifelse) so a length-N config vector isn't silently truncated.
+mono_before  <- if (is.null(config$Model$AIF$spline_monotone_before))  TRUE  else config$Model$AIF$spline_monotone_before
+mono_after_m <- if (is.null(config$Model$AIF$spline_monotone_after_m)) FALSE else config$Model$AIF$spline_monotone_after_m
+mono_after_a <- if (is.null(config$Model$AIF$spline_monotone_after_a)) FALSE else config$Model$AIF$spline_monotone_after_a
+bs_before  <- if (isTRUE(mono_before))  "mpi" else "cr"
+bs_after_d <- if (isTRUE(mono_after_m)) "mpd" else "cr"
+bs_after_c <- if (isTRUE(mono_after_a)) "mpd" else "cr"
+
 aif_data <- aif_data %>%
   mutate(aif_fit = map(aif, ~blmod_splines(time = .x$time, activity = .x$aif,
                                        Method = .x$Method, k_before = kb,
                                        k_after_d = ka_m, k_after_c = ka_a,
+                                       bs_before = bs_before,
+                                       bs_after_d = bs_after_d,
+                                       bs_after_c = bs_after_c,
                                        weightscheme = weightscheme,
                                        Method_weights = Method_weights,
                                        taper_weights = taper_weights)))
@@ -1510,6 +1528,9 @@ if( !do_splines ) {
   config$Model$AIF$spline_kb <- NULL
   config$Model$AIF$spline_ka_m <- NULL
   config$Model$AIF$spline_ka_a <- NULL
+  config$Model$AIF$spline_monotone_before <- NULL
+  config$Model$AIF$spline_monotone_after_m <- NULL
+  config$Model$AIF$spline_monotone_after_a <- NULL
 }
 
 if( !do_fengconv ) {
@@ -1533,10 +1554,21 @@ if( !is.null(config$Model$AIF$weightscheme) && config$Model$AIF$weightscheme == 
   config$Model$AIF$weightscheme <- NULL
 }
 if( !is.null(config$Model$AIF$Method_weights) && config$Model$AIF$Method_weights == TRUE ) {
-  config$Model$AIF$Method_weights <- NULL  
+  config$Model$AIF$Method_weights <- NULL
 }
 if( !is.null(config$Model$AIF$taper_weights) && config$Model$AIF$taper_weights == TRUE ) {
   config$Model$AIF$taper_weights <- NULL
+}
+
+# Clean up default monotone values
+if( !is.null(config$Model$AIF$spline_monotone_before) && isTRUE(config$Model$AIF$spline_monotone_before) ) {
+  config$Model$AIF$spline_monotone_before <- NULL
+}
+if( !is.null(config$Model$AIF$spline_monotone_after_m) && isFALSE(config$Model$AIF$spline_monotone_after_m) ) {
+  config$Model$AIF$spline_monotone_after_m <- NULL
+}
+if( !is.null(config$Model$AIF$spline_monotone_after_a) && isFALSE(config$Model$AIF$spline_monotone_after_a) ) {
+  config$Model$AIF$spline_monotone_after_a <- NULL
 }
 ```
 
@@ -1545,6 +1577,34 @@ if( !is.null(config$Model$AIF$taper_weights) && config$Model$AIF$taper_weights =
 
 The selected modelling approach for modelling the whole blood (WB) data is `r config$Model$WholeBlood$Method`.
 
+```{r wb-weighting-setup}
+#| echo: false
+
+# Define variables for WB weighting display
+fit_wb <- config$Model$WholeBlood$Method != "Interpolation"
+
+# Get weighting parameters with defaults for display
+weightscheme_display   <- if (is.null(config$Model$WholeBlood$weightscheme))   2    else config$Model$WholeBlood$weightscheme
+method_weights_display <- if (is.null(config$Model$WholeBlood$Method_weights)) TRUE else config$Model$WholeBlood$Method_weights
+taper_weights_display  <- if (is.null(config$Model$WholeBlood$taper_weights))  TRUE else config$Model$WholeBlood$taper_weights
+
+weight_scheme_text <- switch(as.character(weightscheme_display),
+                              "1" = "Uniform weighting",
+                              "2" = "Time/activity weighting (Method 2)",
+                              "3" = "Magnitude weighting |activity| (3)",
+                              "4" = "Magnitude weighting sqrt(|activity|) (4)",
+                              "5" = "Magnitude weighting activity^2 (5)",
+                              paste("Weight scheme", weightscheme_display))
+```
+
+```{r wb-weighting-info}
+#| echo: !expr fit_wb
+#| eval: !expr fit_wb
+#| results: asis
+
+cat("**Weighting Configuration:** ", weight_scheme_text, " with Method weights: ", method_weights_display, " and Taper weights: ", taper_weights_display, ".\n\n")
+```
+
 ```{r wb-setup}
 #| echo: false
 
@@ -1552,7 +1612,7 @@ do_splines <-(config$Model$WholeBlood$Method=="Fit Individually: Splines")
 
 fit_wb <- config$Model$WholeBlood$Method != "Interpolation"
 
-exclude_early_manual_wb <- !is.null(config$Model$WholeBlood$exclude_manual_during_continuous) && 
+exclude_early_manual_wb <- !is.null(config$Model$WholeBlood$exclude_manual_during_continuous) &&
                            config$Model$WholeBlood$exclude_manual_during_continuous
 ```
 
@@ -1607,17 +1667,37 @@ wb_data <- bidsdata %>%
   select(pet, wb)
 
 # Fit Model
-kb <- ifelse(config$Model$WholeBlood$spline_kb == "", yes = 10, 
+kb <- ifelse(config$Model$WholeBlood$spline_kb == "", yes = 10,
              no = as.numeric(config$Model$WholeBlood$spline_kb))
-ka_m <- ifelse(config$Model$WholeBlood$spline_ka_m == "", yes = 10, 
+ka_m <- ifelse(config$Model$WholeBlood$spline_ka_m == "", yes = 10,
              no = as.numeric(config$Model$WholeBlood$spline_ka_m))
-ka_a <- ifelse(config$Model$WholeBlood$spline_ka_a == "", yes = 10, 
+ka_a <- ifelse(config$Model$WholeBlood$spline_ka_a == "", yes = 10,
              no = as.numeric(config$Model$WholeBlood$spline_ka_a))
+
+# Set weighting parameters with defaults
+weightscheme <- ifelse(is.null(config$Model$WholeBlood$weightscheme), 2, config$Model$WholeBlood$weightscheme)
+Method_weights <- ifelse(is.null(config$Model$WholeBlood$Method_weights), TRUE, config$Model$WholeBlood$Method_weights)
+taper_weights <- ifelse(is.null(config$Model$WholeBlood$taper_weights), TRUE, config$Model$WholeBlood$taper_weights)
+
+# Translate monotone checkboxes to basis spline types.
+# Use if/else (not ifelse) so a length-N config vector isn't silently truncated.
+mono_before  <- if (is.null(config$Model$WholeBlood$spline_monotone_before))  TRUE  else config$Model$WholeBlood$spline_monotone_before
+mono_after_m <- if (is.null(config$Model$WholeBlood$spline_monotone_after_m)) FALSE else config$Model$WholeBlood$spline_monotone_after_m
+mono_after_a <- if (is.null(config$Model$WholeBlood$spline_monotone_after_a)) FALSE else config$Model$WholeBlood$spline_monotone_after_a
+bs_before  <- if (isTRUE(mono_before))  "mpi" else "cr"
+bs_after_d <- if (isTRUE(mono_after_m)) "mpd" else "cr"
+bs_after_c <- if (isTRUE(mono_after_a)) "mpd" else "cr"
 
 wb_data <- wb_data %>%
   mutate(wb_fit = map(wb, ~blmod_splines(time = .x$time, activity = .x$activity,
                                        Method = .x$Method, k_before = kb,
-                                       k_after_d = ka_m, k_after_c = ka_a)))
+                                       k_after_d = ka_m, k_after_c = ka_a,
+                                       bs_before = bs_before,
+                                       bs_after_d = bs_after_d,
+                                       bs_after_c = bs_after_c,
+                                       weightscheme = weightscheme,
+                                       Method_weights = Method_weights,
+                                       taper_weights = taper_weights)))
 
 # Make Predictions
 mintime <- 0
@@ -1686,6 +1766,13 @@ if( !do_splines ) {
   config$Model$WholeBlood$spline_kb <- NULL
   config$Model$WholeBlood$spline_ka_m <- NULL
   config$Model$WholeBlood$spline_ka_a <- NULL
+  config$Model$WholeBlood$spline_monotone_before <- NULL
+  config$Model$WholeBlood$spline_monotone_after_m <- NULL
+  config$Model$WholeBlood$spline_monotone_after_a <- NULL
+  # WB weighting fields only apply inside the spline fit, so strip them too
+  config$Model$WholeBlood$weightscheme <- NULL
+  config$Model$WholeBlood$Method_weights <- NULL
+  config$Model$WholeBlood$taper_weights <- NULL
 }
 
 if( config$Model$WholeBlood$starttime == 0 ) {
@@ -1694,6 +1781,28 @@ if( config$Model$WholeBlood$starttime == 0 ) {
 
 if( config$Model$WholeBlood$endtime == Inf ) {
   config$Model$WholeBlood$endtime <- NULL
+}
+
+# Clean up default weight values (don't save defaults to avoid clutter)
+if( !is.null(config$Model$WholeBlood$weightscheme) && config$Model$WholeBlood$weightscheme == 2 ) {
+  config$Model$WholeBlood$weightscheme <- NULL
+}
+if( !is.null(config$Model$WholeBlood$Method_weights) && config$Model$WholeBlood$Method_weights == TRUE ) {
+  config$Model$WholeBlood$Method_weights <- NULL
+}
+if( !is.null(config$Model$WholeBlood$taper_weights) && config$Model$WholeBlood$taper_weights == TRUE ) {
+  config$Model$WholeBlood$taper_weights <- NULL
+}
+
+# Clean up default monotone values
+if( !is.null(config$Model$WholeBlood$spline_monotone_before) && isTRUE(config$Model$WholeBlood$spline_monotone_before) ) {
+  config$Model$WholeBlood$spline_monotone_before <- NULL
+}
+if( !is.null(config$Model$WholeBlood$spline_monotone_after_m) && isFALSE(config$Model$WholeBlood$spline_monotone_after_m) ) {
+  config$Model$WholeBlood$spline_monotone_after_m <- NULL
+}
+if( !is.null(config$Model$WholeBlood$spline_monotone_after_a) && isFALSE(config$Model$WholeBlood$spline_monotone_after_a) ) {
+  config$Model$WholeBlood$spline_monotone_after_a <- NULL
 }
 ```
 

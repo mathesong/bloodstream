@@ -6,4 +6,7 @@
 ^\.github$
 ^CLAUDE\.md$
 ^plan\.md$
+^inst/rmd$
 docs/*
+^\.positai$
+^\.claude$

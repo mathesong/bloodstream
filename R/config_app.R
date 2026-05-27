@@ -113,18 +113,27 @@ bloodstream_config_app <- function(bids_dir = NULL, derivatives_dir = NULL, conf
             div(style="display:inline-block",textInput(inputId="pf_starttime", label="from (min)", value = 0)),
             div(style="display:inline-block",textInput(inputId="pf_endtime", label="to (min)", value = Inf)),
             br(),
-            h4("Additional Modelling Options"),
-            textInput(inputId = "pf_k",
-                      label = "GAM dimension of the basis (k)",
-                      value = "6"),
-            p(div(HTML("<em>This value must sometimes be reduced when there are too few data points, or increased for extra wiggliness.</em>")),
-              style = "font-size:12px;"
+            conditionalPanel(
+              condition = "input.pf_model == 'Fit Individually: GAM' || input.pf_model == 'Fit Individually: Choose the best-fitting model' || input.pf_model == 'Fit Hierarchically: HGAM'",
+              h4("Additional Modelling Options")
             ),
-            textInput(inputId = "pf_hgam_opt",
-                      label = "HGAM Smooth Formula",
-                      value = "s(log(time), k=8) + s(log(time), pet, bs='fs', k=5)"),
-            p(div(HTML("<em>Use any of the subsetting attributes, as well as measurement (pet).  ",
-                       "Note: it is recommended to log-transform time for best results. e.g. s(log(time), k=8) + s(log(time), pet, bs='fs', k=5) </em>")))
+            conditionalPanel(
+              condition = "input.pf_model == 'Fit Individually: GAM' || input.pf_model == 'Fit Individually: Choose the best-fitting model'",
+              textInput(inputId = "pf_k",
+                        label = "GAM dimension of the basis (k)",
+                        value = "6"),
+              p(div(HTML("<em>This value must sometimes be reduced when there are too few data points, or increased for extra wiggliness.</em>")),
+                style = "font-size:12px;"
+              )
+            ),
+            conditionalPanel(
+              condition = "input.pf_model == 'Fit Hierarchically: HGAM'",
+              textInput(inputId = "pf_hgam_opt",
+                        label = "HGAM Smooth Formula",
+                        value = "s(log(time), k=8) + s(log(time), pet, bs='fs', k=5)"),
+              p(div(HTML("<em>Use any of the subsetting attributes, as well as measurement (pet).  ",
+                         "Note: it is recommended to log-transform time for best results. e.g. s(log(time), k=8) + s(log(time), pet, bs='fs', k=5) </em>")))
+            )
           ),
           
           tabPanel("Blood-to-Plasma Ratio",
@@ -154,17 +163,26 @@ bloodstream_config_app <- function(bids_dir = NULL, derivatives_dir = NULL, conf
             div(style="display:inline-block",textInput(inputId="bpr_starttime", label="from (min)", value = 0)),
             div(style="display:inline-block",textInput(inputId="bpr_endtime", label="to (min)", value = Inf)),
             br(),
-            h4("Additional Modelling Options"),
-            textInput(inputId = "bpr_k",
-                      label = "GAM dimension of the basis (k)",
-                      value = "6"),
-            p(div(HTML("<em>This value must sometimes be reduced when there are too few data points, or increased for extra wiggliness.</em>")),
-              style = "font-size:12px;"
+            conditionalPanel(
+              condition = "input.bpr_model == 'Fit Individually: GAM' || input.bpr_model == 'Fit Hierarchically: HGAM'",
+              h4("Additional Modelling Options")
             ),
-            textInput(inputId = "bpr_hgam_opt",
-                      label = "HGAM Smooth Formula",
-                      value = "s(time, k=8) + s(time, pet, bs='fs', k=5)"),
-            p(div(HTML("<em>Use any of the subsetting attributes, as well as measurement (pet), e.g. s(time, k=8) + s(time, pet, bs='fs', k=5)</em>")))
+            conditionalPanel(
+              condition = "input.bpr_model == 'Fit Individually: GAM'",
+              textInput(inputId = "bpr_k",
+                        label = "GAM dimension of the basis (k)",
+                        value = "6"),
+              p(div(HTML("<em>This value must sometimes be reduced when there are too few data points, or increased for extra wiggliness.</em>")),
+                style = "font-size:12px;"
+              )
+            ),
+            conditionalPanel(
+              condition = "input.bpr_model == 'Fit Hierarchically: HGAM'",
+              textInput(inputId = "bpr_hgam_opt",
+                        label = "HGAM Smooth Formula",
+                        value = "s(time, k=8) + s(time, pet, bs='fs', k=5)"),
+              p(div(HTML("<em>Use any of the subsetting attributes, as well as measurement (pet), e.g. s(time, k=8) + s(time, pet, bs='fs', k=5)</em>")))
+            )
           ),
           
           tabPanel("Arterial Input Function",
@@ -185,53 +203,87 @@ bloodstream_config_app <- function(bids_dir = NULL, derivatives_dir = NULL, conf
             h4("Time subsetting"),
             div(style="display:inline-block",textInput(inputId="aif_starttime", label="from (min)", value = 0)),
             div(style="display:inline-block",textInput(inputId="aif_endtime", label="to (min)", value = Inf)),
-            h4("Additional Parametric Modelling Options"),
-            p("expdecay_props: What proportions of the decay should be used for ",
-              "choosing starting parameters for the exponential decay. Leave blank ",
-              "for default."),
-            div(style="display:inline-block",textInput(inputId="aif_expdecay_1", label="expdecay_props[1]", value = "")),
-            div(style="display:inline-block",textInput(inputId="aif_expdecay_2", label="expdecay_props[2]", value = "")),
-            textInput(inputId = "aif_inftime",
-                      label = "Injection infusion duration (sec)",
-                      value = ""),
-            p(div(HTML("<em>Required for FengConv: either the number of seconds if known (e.g. 30), or the range if unknown, e.g. 25;35.</em>")),
-              style = "font-size:12px;"),
+            conditionalPanel(
+              condition = "input.aif_model == 'Fit Individually: Linear Rise, Triexponential Decay' || input.aif_model == 'Fit Individually: Feng' || input.aif_model == 'Fit Individually: FengConv'",
+              h4("Additional Parametric Modelling Options"),
+              p("expdecay_props: What proportions of the decay should be used for ",
+                "choosing starting parameters for the exponential decay. Leave blank ",
+                "for default."),
+              div(style="display:inline-block",textInput(inputId="aif_expdecay_1", label="expdecay_props[1]", value = "")),
+              div(style="display:inline-block",textInput(inputId="aif_expdecay_2", label="expdecay_props[2]", value = ""))
+            ),
+            conditionalPanel(
+              condition = "input.aif_model == 'Fit Individually: FengConv'",
+              textInput(inputId = "aif_inftime",
+                        label = "Injection infusion duration (sec)",
+                        value = ""),
+              p(div(HTML("<em>Required for FengConv: either the number of seconds if known (e.g. 30), or the range if unknown, e.g. 25;35.</em>")),
+                style = "font-size:12px;")
+            ),
+            conditionalPanel(
+              condition = "input.aif_model == 'Fit Individually: Splines'",
+              br(),
+              h4("Additional Spline Modelling Options"),
+              p(glue::glue("Depending on the number of samples and the wiggliness of the curve, some of the ",
+                     "k values may need to be altered.")),
+              div(style="display:inline-block",textInput(inputId="aif_kb",   label="k before the peak", value = "")),
+              div(style="display:inline-block",textInput(inputId="aif_ka_a", label="k after the peak (auto)", value = "")),
+              div(style="display:inline-block",textInput(inputId="aif_ka_m", label="k after the peak (manual)", value = "")),
+              br(),
+              p(glue::glue("Monotonic constraints force each spline segment to be strictly increasing (before the peak) ",
+                     "or strictly decreasing (after the peak). This is helpful when the unconstrained fit produces ",
+                     "small wiggles or dips that don't reflect the underlying physiology. Untick to fall back to an ",
+                     "unconstrained cubic regression spline."),
+                style = "font-size:12px;"),
+              checkboxInput(inputId = "aif_monotone_before",
+                            label = "Monotone before the peak",
+                            value = TRUE),
+              checkboxInput(inputId = "aif_monotone_after_m",
+                            label = "Monotone after the peak (manual)",
+                            value = FALSE),
+              checkboxInput(inputId = "aif_monotone_after_a",
+                            label = "Monotone after the peak (auto)",
+                            value = FALSE)
+            ),
+            conditionalPanel(
+              condition = "input.aif_model != 'Interpolation'",
+              br(),
+              h4("Weighting Options for AIF Fitting"),
+              p(glue::glue("These options control how the AIF models are weighted during fitting. ",
+                     "Proper weighting can improve model fits, especially for parametric models.")),
+
+              selectInput(inputId = "aif_weightscheme",
+                          label = "Weight scheme",
+                          choices = list("Uniform weighting" = 1,
+                                         "Time/activity weighting (Method 2)" = 2,
+                                         "Magnitude weighting |activity| (3)" = 3,
+                                         "Magnitude weighting sqrt(|activity|) (4)" = 4,
+                                         "Magnitude weighting activity^2 (5)" = 5),
+                          selected = 2,
+                          multiple = FALSE),
+              div(p(glue::glue("Schemes 3-5 weight each sample by its activity magnitude (linear, square-root, ",
+                         "or squared). Prefer these when activity values span many orders of magnitude and ",
+                         "large samples should dominate the fit.")),
+                  style = "font-size:12px; margin-left:20px; margin-top:-10px;"),
+
+              checkboxInput(inputId = "aif_method_weights",
+                            label = "Method weights",
+                            value = TRUE),
+              div(p("Divides weights between discrete and continuous samples equally"),
+                  style = "font-size:12px; margin-left:20px; margin-top:-10px;"),
+
+              checkboxInput(inputId = "aif_taper_weights",
+                            label = "Taper weights",
+                            value = TRUE),
+              div(p("Gradually trades off between continuous and discrete samples after peak"),
+                  style = "font-size:12px; margin-left:20px; margin-top:-10px;")
+            ),
             br(),
-            h4("Additional Spline Modelling Options"),
-            p(glue::glue("Depending on the number of samples and the wiggliness of the curve, some of the ",
-                   "k values may need to be altered.")),
-            div(style="display:inline-block",textInput(inputId="aif_kb",   label="k before the peak", value = "")),
-            div(style="display:inline-block",textInput(inputId="aif_ka_a", label="k after the peak (auto)", value = "")),
-            div(style="display:inline-block",textInput(inputId="aif_ka_m", label="k after the peak (manual)", value = "")),
-            br(),
-            h4("Weighting Options for AIF Fitting"),
-            p(glue::glue("These options control how the AIF models are weighted during fitting. ",
-                   "Proper weighting can improve model fits, especially for parametric models.")),
-            
-            selectInput(inputId = "aif_weightscheme",
-                        label = "Weight scheme",
-                        choices = list("Uniform weighting" = 1,
-                                       "Time/activity weighting (Method 2)" = 2),
-                        selected = 2,
-                        multiple = FALSE),
-            
-            checkboxInput(inputId = "aif_method_weights",
-                          label = "Method weights",
-                          value = TRUE),
-            div(p("Divides weights between discrete and continuous samples equally"), 
-                style = "font-size:12px; margin-left:20px; margin-top:-10px;"),
-            
-            checkboxInput(inputId = "aif_taper_weights", 
-                          label = "Taper weights",
-                          value = TRUE),
-            div(p("Gradually trades off between continuous and discrete samples after peak"), 
-                style = "font-size:12px; margin-left:20px; margin-top:-10px;"),
-            br(),
-            
+
             checkboxInput(inputId = "aif_exclude_manual_during_continuous",
                           label = "Exclude manual samples collected during continuous sampling",
                           value = FALSE),
-            div(p("Removes discrete (manual) samples that occur before the last continuous sample for calculating the AIF curve"), 
+            div(p("Removes discrete (manual) samples that occur before the last continuous sample for calculating the AIF curve"),
                 style = "font-size:12px; margin-left:20px; margin-top:-10px;")
           ),
           
@@ -259,14 +311,62 @@ bloodstream_config_app <- function(bids_dir = NULL, derivatives_dir = NULL, conf
             h4("Time subsetting"),
             div(style="display:inline-block",textInput(inputId="wb_starttime", label="from (min)", value = 0)),
             div(style="display:inline-block",textInput(inputId="wb_endtime", label="to (min)", value = Inf)),
-            br(),
-            h4("Additional Spline Modelling Options"),
-            p(glue::glue("Depending on the number of samples, some of the ",
-                   "k values may need to be reduced from their default ",
-                   "of 10")),
-            div(style="display:inline-block",textInput(inputId="wb_kb",   label="k before the peak", value = "")),
-            div(style="display:inline-block",textInput(inputId="wb_ka_a", label="k after the peak (auto)", value = "")),
-            div(style="display:inline-block",textInput(inputId="wb_ka_m", label="k after the peak (manual)", value = ""))
+            conditionalPanel(
+              condition = "input.wb_model == 'Fit Individually: Splines'",
+              br(),
+              h4("Additional Spline Modelling Options"),
+              p(glue::glue("Depending on the number of samples, some of the ",
+                     "k values may need to be reduced from their default ",
+                     "of 10")),
+              div(style="display:inline-block",textInput(inputId="wb_kb",   label="k before the peak", value = "")),
+              div(style="display:inline-block",textInput(inputId="wb_ka_a", label="k after the peak (auto)", value = "")),
+              div(style="display:inline-block",textInput(inputId="wb_ka_m", label="k after the peak (manual)", value = "")),
+              br(),
+              p(glue::glue("Monotonic constraints force each spline segment to be strictly increasing (before the peak) ",
+                     "or strictly decreasing (after the peak). This is helpful when the unconstrained fit produces ",
+                     "small wiggles or dips that don't reflect the underlying physiology. Untick to fall back to an ",
+                     "unconstrained cubic regression spline."),
+                style = "font-size:12px;"),
+              checkboxInput(inputId = "wb_monotone_before",
+                            label = "Monotone before the peak",
+                            value = TRUE),
+              checkboxInput(inputId = "wb_monotone_after_m",
+                            label = "Monotone after the peak (manual)",
+                            value = FALSE),
+              checkboxInput(inputId = "wb_monotone_after_a",
+                            label = "Monotone after the peak (auto)",
+                            value = FALSE),
+              br(),
+              h4("Weighting Options for Whole Blood Fitting"),
+              p(glue::glue("These options control how the whole blood spline is weighted during fitting. ",
+                     "Proper weighting can improve fits when discrete and continuous samples differ in noise.")),
+
+              selectInput(inputId = "wb_weightscheme",
+                          label = "Weight scheme",
+                          choices = list("Uniform weighting" = 1,
+                                         "Time/activity weighting (Method 2)" = 2,
+                                         "Magnitude weighting |activity| (3)" = 3,
+                                         "Magnitude weighting sqrt(|activity|) (4)" = 4,
+                                         "Magnitude weighting activity^2 (5)" = 5),
+                          selected = 2,
+                          multiple = FALSE),
+              div(p(glue::glue("Schemes 3-5 weight each sample by its activity magnitude (linear, square-root, ",
+                         "or squared). Prefer these when activity values span many orders of magnitude and ",
+                         "large samples should dominate the fit.")),
+                  style = "font-size:12px; margin-left:20px; margin-top:-10px;"),
+
+              checkboxInput(inputId = "wb_method_weights",
+                            label = "Method weights",
+                            value = TRUE),
+              div(p("Divides weights between discrete and continuous samples equally"),
+                  style = "font-size:12px; margin-left:20px; margin-top:-10px;"),
+
+              checkboxInput(inputId = "wb_taper_weights",
+                            label = "Taper weights",
+                            value = TRUE),
+              div(p("Gradually trades off between continuous and discrete samples after peak"),
+                  style = "font-size:12px; margin-left:20px; margin-top:-10px;")
+            )
           ),
           
           tabPanel("Download & Run",
@@ -364,11 +464,14 @@ bloodstream_config_app <- function(bids_dir = NULL, derivatives_dir = NULL, conf
         updateTextInput(session, "aif_kb", value = config_data$Model$AIF$spline_kb %||% "")
         updateTextInput(session, "aif_ka_a", value = config_data$Model$AIF$spline_ka_a %||% "")
         updateTextInput(session, "aif_ka_m", value = config_data$Model$AIF$spline_ka_m %||% "")
+        updateCheckboxInput(session, "aif_monotone_before", value = config_data$Model$AIF$spline_monotone_before %||% TRUE)
+        updateCheckboxInput(session, "aif_monotone_after_m", value = config_data$Model$AIF$spline_monotone_after_m %||% FALSE)
+        updateCheckboxInput(session, "aif_monotone_after_a", value = config_data$Model$AIF$spline_monotone_after_a %||% FALSE)
         updateSelectInput(session, "aif_weightscheme", selected = config_data$Model$AIF$weightscheme %||% 2)
         updateCheckboxInput(session, "aif_method_weights", value = config_data$Model$AIF$Method_weights %||% TRUE)
         updateCheckboxInput(session, "aif_taper_weights", value = config_data$Model$AIF$taper_weights %||% TRUE)
         updateCheckboxInput(session, "aif_exclude_manual_during_continuous", value = config_data$Model$AIF$exclude_manual_during_continuous %||% FALSE)
-        
+
         # Update Whole Blood inputs
         updateSelectInput(session, "wb_model", selected = config_data$Model$WholeBlood$Method %||% "Interpolation")
         updateCheckboxInput(session, "wb_dispcor", value = config_data$Model$WholeBlood$dispcor %||% FALSE)
@@ -378,15 +481,113 @@ bloodstream_config_app <- function(bids_dir = NULL, derivatives_dir = NULL, conf
         updateTextInput(session, "wb_kb", value = config_data$Model$WholeBlood$spline_kb %||% "")
         updateTextInput(session, "wb_ka_a", value = config_data$Model$WholeBlood$spline_ka_a %||% "")
         updateTextInput(session, "wb_ka_m", value = config_data$Model$WholeBlood$spline_ka_m %||% "")
+        updateCheckboxInput(session, "wb_monotone_before", value = config_data$Model$WholeBlood$spline_monotone_before %||% TRUE)
+        updateCheckboxInput(session, "wb_monotone_after_m", value = config_data$Model$WholeBlood$spline_monotone_after_m %||% FALSE)
+        updateCheckboxInput(session, "wb_monotone_after_a", value = config_data$Model$WholeBlood$spline_monotone_after_a %||% FALSE)
+        updateSelectInput(session, "wb_weightscheme", selected = config_data$Model$WholeBlood$weightscheme %||% 2)
+        updateCheckboxInput(session, "wb_method_weights", value = config_data$Model$WholeBlood$Method_weights %||% TRUE)
+        updateCheckboxInput(session, "wb_taper_weights", value = config_data$Model$WholeBlood$taper_weights %||% TRUE)
         
       }, error = function(e) {
         cat("Error loading config file:", e$message, "\n")
       })
     }
     
+    # Per-component builders that only include fields relevant to the chosen
+    # method. Keeps the saved config compact and avoids storing values for
+    # parameters that won't be used. The loader uses %||% defaults, so any
+    # omitted field falls back gracefully when a config is read back in.
+    build_pf_config <- function(input) {
+      cfg <- list(
+        Method = input$pf_model,
+        set_ppf0 = input$pf_set_t0,
+        starttime = as.numeric(input$pf_starttime),
+        endtime  = as.numeric(input$pf_endtime)
+      )
+      if (input$pf_model %in% c("Fit Individually: GAM",
+                                "Fit Individually: Choose the best-fitting model")) {
+        cfg$gam_k <- input$pf_k
+      }
+      if (input$pf_model == "Fit Hierarchically: HGAM") {
+        cfg$hgam_formula <- input$pf_hgam_opt
+      }
+      cfg
+    }
+
+    build_bpr_config <- function(input) {
+      cfg <- list(
+        Method = input$bpr_model,
+        starttime = as.numeric(input$bpr_starttime),
+        endtime  = as.numeric(input$bpr_endtime)
+      )
+      if (input$bpr_model == "Fit Individually: GAM") {
+        cfg$gam_k <- as.numeric(input$bpr_k)
+      }
+      if (input$bpr_model == "Fit Hierarchically: HGAM") {
+        cfg$hgam_formula <- input$bpr_hgam_opt
+      }
+      cfg
+    }
+
+    build_aif_config <- function(input) {
+      parametric_methods <- c(
+        "Fit Individually: Linear Rise, Triexponential Decay",
+        "Fit Individually: Feng",
+        "Fit Individually: FengConv"
+      )
+      cfg <- list(
+        Method = input$aif_model,
+        starttime = as.numeric(input$aif_starttime),
+        endtime  = as.numeric(input$aif_endtime),
+        exclude_manual_during_continuous = input$aif_exclude_manual_during_continuous
+      )
+      if (input$aif_model %in% parametric_methods) {
+        cfg$expdecay_props <- as.numeric(c(input$aif_expdecay_1, input$aif_expdecay_2))
+      }
+      if (input$aif_model == "Fit Individually: FengConv") {
+        cfg$inftime <- as.numeric(stringr::str_split(input$aif_inftime, pattern = ";")[[1]])
+      }
+      if (input$aif_model == "Fit Individually: Splines") {
+        cfg$spline_kb <- input$aif_kb
+        cfg$spline_ka_m <- input$aif_ka_m
+        cfg$spline_ka_a <- input$aif_ka_a
+        cfg$spline_monotone_before <- input$aif_monotone_before
+        cfg$spline_monotone_after_m <- input$aif_monotone_after_m
+        cfg$spline_monotone_after_a <- input$aif_monotone_after_a
+      }
+      if (input$aif_model != "Interpolation") {
+        cfg$weightscheme <- as.numeric(input$aif_weightscheme)
+        cfg$Method_weights <- input$aif_method_weights
+        cfg$taper_weights <- input$aif_taper_weights
+      }
+      cfg
+    }
+
+    build_wb_config <- function(input) {
+      cfg <- list(
+        Method = input$wb_model,
+        dispcor = input$wb_dispcor,
+        exclude_manual_during_continuous = input$wb_exclude_manual_during_continuous,
+        starttime = as.numeric(input$wb_starttime),
+        endtime  = as.numeric(input$wb_endtime)
+      )
+      if (input$wb_model == "Fit Individually: Splines") {
+        cfg$spline_kb <- input$wb_kb
+        cfg$spline_ka_m <- input$wb_ka_m
+        cfg$spline_ka_a <- input$wb_ka_a
+        cfg$spline_monotone_before <- input$wb_monotone_before
+        cfg$spline_monotone_after_m <- input$wb_monotone_after_m
+        cfg$spline_monotone_after_a <- input$wb_monotone_after_a
+        cfg$weightscheme <- as.numeric(input$wb_weightscheme)
+        cfg$Method_weights <- input$wb_method_weights
+        cfg$taper_weights <- input$wb_taper_weights
+      }
+      cfg
+    }
+
     # Reactive expression to generate the config file ----
     config_json <- reactive({
-      
+
       Subsets <- list(
         sub = input$subset_sub,
         ses = input$subset_ses,
@@ -398,61 +599,17 @@ bloodstream_config_app <- function(bids_dir = NULL, derivatives_dir = NULL, conf
         InstitutionName = input$subset_institute,
         PharmaceuticalName = input$subset_pharmaceutical
       )
-      
-      ParentFraction <- list(
-        Method = input$pf_model,
-        set_ppf0 = input$pf_set_t0,
-        starttime = as.numeric(input$pf_starttime),
-        endtime  = as.numeric(input$pf_endtime),
-        gam_k = input$pf_k,
-        hgam_formula = input$pf_hgam_opt
-      )
-      
-      BPR <- list(
-        Method = input$bpr_model,
-        starttime = as.numeric(input$bpr_starttime),
-        endtime  = as.numeric(input$bpr_endtime),
-        gam_k = as.numeric(input$bpr_k),
-        hgam_formula = input$bpr_hgam_opt
-      )
-      
-      AIF <- list(
-        Method = input$aif_model,
-        starttime = as.numeric(input$aif_starttime),
-        endtime  = as.numeric(input$aif_endtime),
-        expdecay_props = as.numeric(c(input$aif_expdecay_1,
-                                      input$aif_expdecay_2)),
-        inftime = as.numeric(stringr::str_split(input$aif_inftime, pattern = ";")[[1]]),
-        spline_kb = input$aif_kb,
-        spline_ka_m = input$aif_ka_m,
-        spline_ka_a = input$aif_ka_a,
-        weightscheme = as.numeric(input$aif_weightscheme),
-        Method_weights = input$aif_method_weights,
-        taper_weights = input$aif_taper_weights,
-        exclude_manual_during_continuous = input$aif_exclude_manual_during_continuous
-      )
-      
-      WholeBlood <- list(
-        Method = input$wb_model,
-        dispcor = input$wb_dispcor,
-        exclude_manual_during_continuous = input$wb_exclude_manual_during_continuous,
-        starttime = as.numeric(input$wb_starttime),
-        endtime  = as.numeric(input$wb_endtime),
-        spline_kb = input$wb_kb,
-        spline_ka_m = input$wb_ka_m,
-        spline_ka_a = input$wb_ka_a
-      )
-      
+
       config_list <- list(
         Subsets = Subsets,
         Model = list(
-          ParentFraction = ParentFraction,
-          BPR = BPR,
-          AIF = AIF,
-          WholeBlood = WholeBlood
+          ParentFraction = build_pf_config(input),
+          BPR = build_bpr_config(input),
+          AIF = build_aif_config(input),
+          WholeBlood = build_wb_config(input)
         )
       )
-      
+
       jsonlite::toJSON(config_list, pretty=TRUE)
     })
     
