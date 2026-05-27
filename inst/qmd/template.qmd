@@ -1041,9 +1041,8 @@ taper_weights_display <- ifelse(is.null(config$Model$AIF$taper_weights), TRUE, c
 weight_scheme_text <- switch(as.character(weightscheme_display),
                               "1" = "Uniform weighting",
                               "2" = "Time/activity weighting (Method 2)",
-                              "3" = "Magnitude weighting |activity| (3)",
-                              "4" = "Magnitude weighting sqrt(|activity|) (4)",
-                              "5" = "Magnitude weighting activity^2 (5)",
+                              "3" = "abs(activity) weighting",
+                              "4" = "1/abs(activity) weighting",
                               paste("Weight scheme", weightscheme_display))
 ```
 
@@ -1591,9 +1590,8 @@ taper_weights_display  <- if (is.null(config$Model$WholeBlood$taper_weights))  T
 weight_scheme_text <- switch(as.character(weightscheme_display),
                               "1" = "Uniform weighting",
                               "2" = "Time/activity weighting (Method 2)",
-                              "3" = "Magnitude weighting |activity| (3)",
-                              "4" = "Magnitude weighting sqrt(|activity|) (4)",
-                              "5" = "Magnitude weighting activity^2 (5)",
+                              "3" = "abs(activity) weighting",
+                              "4" = "1/abs(activity) weighting",
                               paste("Weight scheme", weightscheme_display))
 ```
 
