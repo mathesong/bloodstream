@@ -187,15 +187,6 @@ module load apptainer
 module load singularity-ce
 ```
 
-## Performance considerations
-
-| Resource | Interactive mode | Automatic mode |
-|----------|-----------------|----------------|
-| **RAM** | 4-8 GB recommended | 2-4 GB typically sufficient |
-| **CPU** | Mostly single-threaded | Single-threaded |
-| **Container size** | ~2-3 GB for `.sif` file | Same |
-| **Working space** | 2-5x input data size | Same |
-
 ## Docker to Singularity migration
 
 | Docker | Singularity |
