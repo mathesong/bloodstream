@@ -23,7 +23,7 @@ This is a standard R package with the following key components:
 - **Plotting**: `R/plotting.R` contains visualization functions for different blood components
 - **Quality Control**: `R/qc.R` contains validation functions for blood processing results
 - **Utilities**: `R/helper_funcs.R` and `R/subsetting.R` contain helper functions
-- **Templates**: `inst/rmd/template.rmd` is the R Markdown template for generating reports
+- **Templates**: `inst/qmd/template.qmd` is the Quarto template for generating reports
 - **Configuration**: `inst/extdata/config.json` provides default configuration settings
 
 ## Key Dependencies
@@ -114,7 +114,7 @@ docker run \
    - **Blood-to-Plasma Ratio (BPR)**: Various modelling approaches
    - **Arterial Input Function (AIF)**: Spline-based or exponential decay modelling  
    - **Whole Blood**: Spline-based modelling with optional dispersion correction
-4. **Report Generation**: R Markdown template generates comprehensive HTML report
+4. **Report Generation**: Quarto template generates comprehensive HTML report
 5. **Output**: TSV files, JSON sidecars, and configuration files in BIDS derivatives format
 
 ### Configuration System
@@ -135,7 +135,7 @@ The package uses JSON configuration files to specify:
 
 ## Report Template
 
-The R Markdown template (`inst/rmd/template.rmd`) generates comprehensive reports including:
+The Quarto template (`inst/qmd/template.qmd`) generates comprehensive reports including:
 - Model fitting results and comparisons
 - Before/after plots for each blood component
 - Quality control metrics
@@ -156,7 +156,7 @@ The Docker implementation (`docker/dockerfile`) creates a BIDS app that:
 
 ### Docker Architecture Features
 - **User Permission Handling**: Proper UID/GID mapping to avoid permission issues
-- **Template Copying**: R Markdown templates copied to writable temp directory for permission compatibility
+- **Template Copying**: Quarto templates copied to writable temp directory for permission compatibility
 - **Config Auto-Detection**: Automatically uses `/config.json` if mounted
 - **Analysis Folder Management**: Uses "Primary_Analysis" as default, allows custom naming via `--analysis_foldername`
 - **Port Exposure**: Exposes port 3838 for interactive Shiny interface

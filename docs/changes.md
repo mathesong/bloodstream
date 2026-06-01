@@ -1,6 +1,11 @@
 # Changelog
 
-## 0.2.1 (current)
+## 0.2.2 (current)
+
+- Option to exclude manual samples taken during continuous sampling (AIF and whole blood)
+- Documentation site refinements
+
+## 0.2.1
 
 - API cleanup: renamed `launch_bloodstream_app()` to `bloodstream_interactive()`
 - Argument harmonisation: `config_file` to `configpath`, `analysis_folder` to `analysis_foldername` across all functions

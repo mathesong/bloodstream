@@ -211,7 +211,9 @@ bloodstream_config_app <- function(bids_dir = NULL, derivatives_dir = NULL, conf
             selectInput(inputId = "aif_weightscheme",
                         label = "Weight scheme",
                         choices = list("Uniform weighting" = 1,
-                                       "Time/activity weighting (Method 2)" = 2),
+                                       "Time/activity weighting (Method 2)" = 2,
+                                       "Activity weighting" = 3,
+                                       "Inverse activity weighting" = 4),
                         selected = 2,
                         multiple = FALSE),
             

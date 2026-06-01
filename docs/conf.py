@@ -7,7 +7,7 @@ project = "bloodstream"
 copyright = "2025, Granville Matheson"
 author = "Granville Matheson"
 version = "0.2"
-release = "0.2.1"
+release = "0.2.2"
 
 # -- General configuration ---------------------------------------------------
 

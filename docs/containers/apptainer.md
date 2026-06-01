@@ -1,13 +1,12 @@
-# Singularity / Apptainer
+# Apptainer
 
-Singularity (now [Apptainer](https://apptainer.org/)) is the standard container runtime on HPC clusters.
+[Apptainer](https://apptainer.org/) (formerly Singularity) is the standard container runtime on HPC clusters.
 
 ## Building the container
 
 ### Prerequisites
 
-- Singularity or Apptainer installed
-- `sudo` access for building (not for running)
+- Apptainer installed (or Singularity, which uses the same commands)
 - Internet access during the build
 
 ### Pull from the Docker image
@@ -59,7 +58,7 @@ apptainer run \
 
 ## Volume mounting
 
-Singularity uses `--bind` instead of Docker's `-v`:
+Apptainer uses `--bind` instead of Docker's `-v`:
 
 ```bash
 --bind /host/path:/container/path
@@ -82,73 +81,13 @@ Singularity uses `--bind` instead of Docker's `-v`:
 #SBATCH --mem=8G
 #SBATCH --cpus-per-task=2
 
-module load singularity
+module load apptainer
 
 apptainer run \
   --bind /scratch/project/bids_data:/data/bids_dir \
   --bind /scratch/project/derivatives:/data/derivatives_dir \
   bloodstream_latest.sif \
   --mode interactive
-```
-
-**Batch processing with job arrays:**
-
-```bash
-#!/bin/bash
-#SBATCH --job-name=bloodstream-batch
-#SBATCH --time=02:00:00
-#SBATCH --mem=4G
-#SBATCH --cpus-per-task=1
-#SBATCH --array=1-3
-
-module load singularity
-
-ANALYSES=(Primary_Analysis GAM_ParentFraction Spline_AIF)
-CURRENT=${ANALYSES[$SLURM_ARRAY_TASK_ID-1]}
-
-apptainer run \
-  --bind /scratch/project/bids:/data/bids_dir \
-  --bind /scratch/project/derivatives:/data/derivatives_dir \
-  --bind /scratch/project/configs/${CURRENT}.json:/config.json \
-  bloodstream_latest.sif \
-  --analysis_foldername "$CURRENT"
-```
-
-### PBS/Torque
-
-```bash
-#!/bin/bash
-#PBS -N bloodstream-processing
-#PBS -l walltime=02:00:00
-#PBS -l mem=4gb
-#PBS -l ncpus=1
-
-cd $PBS_O_WORKDIR
-module load singularity
-
-apptainer run \
-  --bind /data/bids:/data/bids_dir \
-  --bind /data/derivatives:/data/derivatives_dir \
-  --bind /data/config.json:/config.json \
-  bloodstream_latest.sif \
-  --analysis_foldername "Primary_Analysis"
-```
-
-### LSF
-
-```bash
-#!/bin/bash
-#BSUB -J bloodstream-batch
-#BSUB -W 02:00
-#BSUB -M 4000
-#BSUB -n 1
-
-module load singularity
-
-apptainer run \
-  --bind /data/bids:/data/bids_dir \
-  --bind /data/derivatives:/data/derivatives_dir \
-  bloodstream_latest.sif
 ```
 
 ## Troubleshooting
@@ -170,10 +109,10 @@ Build the container on a login node, then copy the `.sif` file to your project s
 
 ### Home directory size limits
 
-Build in a scratch directory and set `SINGULARITY_CACHEDIR`:
+Build in a scratch directory and set `APPTAINER_CACHEDIR`:
 
 ```bash
-export SINGULARITY_CACHEDIR=/scratch/$USER/singularity_cache
+export APPTAINER_CACHEDIR=/scratch/$USER/apptainer_cache
 apptainer pull bloodstream_latest.sif docker://mathesong/bloodstream:latest
 ```
 
@@ -182,17 +121,7 @@ apptainer pull bloodstream_latest.sif docker://mathesong/bloodstream:latest
 Common module names across HPC systems:
 
 ```bash
-module load singularity
 module load apptainer
+module load singularity
 module load singularity-ce
 ```
-
-## Docker to Singularity migration
-
-| Docker | Singularity |
-|--------|-------------|
-| `docker run -v /data:/data/bids_dir -p 3838:3838 mathesong/bloodstream --mode interactive` | `apptainer run --bind /data:/data/bids_dir bloodstream_latest.sif --mode interactive` |
-| `docker run -v /data:/data/bids_dir mathesong/bloodstream` | `apptainer run --bind /data:/data/bids_dir bloodstream_latest.sif` |
-| `docker pull mathesong/bloodstream:latest` | `apptainer pull bloodstream_latest.sif docker://mathesong/bloodstream:latest` |
-
-The command-line arguments and functionality are identical between Docker and Singularity.

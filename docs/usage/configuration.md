@@ -168,7 +168,7 @@ The AIF describes the time course of radioactivity in arterial plasma after inje
 | `spline_kb` | Spline k before peak | `""` (auto) |
 | `spline_ka_m` | Spline k after peak (manual samples) | `""` (auto) |
 | `spline_ka_a` | Spline k after peak (auto-sampler) | `""` (auto) |
-| `weightscheme` | Weight scheme: `1` = uniform, `2` = time/activity-based | `2` |
+| `weightscheme` | Weight scheme: `1` = uniform, `2` = time/activity (default), `3` = activity, `4` = inverse activity | `2` |
 | `Method_weights` | Divide weights equally between discrete and continuous methods | `true` |
 | `taper_weights` | Taper weights after peak | `true` |
 | `exclude_manual_during_continuous` | Exclude manual samples during continuous sampling | `false` |

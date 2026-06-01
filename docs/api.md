@@ -64,7 +64,7 @@ bloodstream_interactive(
 
 ## Container CLI options
 
-When running bloodstream in Docker or Singularity/Apptainer, the container accepts these flags:
+When running bloodstream in Docker or Apptainer, the container accepts these flags:
 
 | Flag | Description |
 |------|-------------|

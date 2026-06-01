@@ -4,7 +4,7 @@
 #' @param configpath The path to the config file.
 #' @param derivatives_dir The path to the derivatives directory. If NULL, uses bids_dir/derivatives.
 #' @param analysis_foldername The name for the analysis subfolder (default: "Primary_Analysis").
-#' @param template_path The path to the R Markdown template. If NULL, uses package default.
+#' @param template_path The path to the Quarto template. If NULL, uses package default.
 #'
 #' @return The derivatives files, and report will be produced in the study folder.
 #' @export

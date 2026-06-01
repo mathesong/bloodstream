@@ -126,20 +126,6 @@ docker run --user $(id -u):$(id -g) \
 sudo chown -R $(id -u):$(id -g) /path/to/derivatives
 ```
 
-## Batch processing
-
-```bash
-for analysis in Analysis1 Analysis2 Analysis3; do
-  docker run --rm \
-    --user $(id -u):$(id -g) \
-    -v /path/to/bids:/data/bids_dir:ro \
-    -v /path/to/derivatives:/data/derivatives_dir:rw \
-    -v /path/to/configs/${analysis}_config.json:/config.json:ro \
-    mathesong/bloodstream:latest \
-    --analysis_foldername "$analysis"
-done
-```
-
 ## Analysis folder structure
 
 Outputs are organised in analysis folders within `derivatives/bloodstream/`:

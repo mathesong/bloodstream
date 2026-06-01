@@ -24,9 +24,9 @@ docker build -f docker/dockerfile -t mathesong/bloodstream:latest . --platform l
 
 See [Docker usage](containers/docker.md) for full details on running the container.
 
-## Singularity / Apptainer
+## Apptainer
 
-Singularity (now called [Apptainer](https://apptainer.org/)) is the standard container runtime on HPC clusters.
+[Apptainer](https://apptainer.org/) (formerly Singularity) is the standard container runtime on HPC clusters.
 
 ### Pull from the Docker image
 
@@ -36,11 +36,10 @@ apptainer pull bloodstream_latest.sif docker://mathesong/bloodstream:latest
 
 ### Prerequisites
 
-- Singularity or Apptainer installed on your system
-- `sudo` access for building (not required for running)
+- Apptainer installed on your system (or Singularity, which uses the same commands)
 - Internet access during the build
 
-See [Singularity usage](containers/singularity.md) for full details, including HPC integration with SLURM, PBS, and LSF.
+See [Apptainer usage](containers/apptainer.md) for full details, including HPC integration.
 
 ## R package (for development)
 

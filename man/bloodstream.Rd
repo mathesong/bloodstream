@@ -21,7 +21,7 @@ bloodstream(
 
 \item{analysis_foldername}{The name for the analysis subfolder (default: "Primary_Analysis").}
 
-\item{template_path}{The path to the R Markdown template. If NULL, uses package default.}
+\item{template_path}{The path to the Quarto template. If NULL, uses package default.}
 }
 \value{
 The derivatives files, and report will be produced in the study folder.

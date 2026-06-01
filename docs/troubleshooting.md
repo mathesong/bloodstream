@@ -24,10 +24,10 @@
 
 ### Home directory size limits
 
-**Fix:** Set `SINGULARITY_CACHEDIR` to a scratch directory:
+**Fix:** Set `APPTAINER_CACHEDIR` to a scratch directory:
 
 ```bash
-export SINGULARITY_CACHEDIR=/scratch/$USER/singularity_cache
+export APPTAINER_CACHEDIR=/scratch/$USER/apptainer_cache
 ```
 
 ### Module loading
@@ -35,8 +35,8 @@ export SINGULARITY_CACHEDIR=/scratch/$USER/singularity_cache
 Common module names:
 
 ```bash
-module load singularity
 module load apptainer
+module load singularity
 module load singularity-ce
 ```
 

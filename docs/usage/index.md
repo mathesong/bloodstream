@@ -17,7 +17,7 @@ Both modes produce identical results. The difference is how you interact with th
 
 **Interactive mode** launches a Shiny web app in your browser. You configure modelling choices for each blood component using a graphical interface, preview data, and optionally run the pipeline. The app generates a JSON configuration file that records all your choices.
 
-**Automatic mode** reads an existing JSON configuration file and runs the pipeline without any user interaction. Running without a config file applies linear interpolation to all components. This is designed for batch processing, HPC clusters, and reproducible workflows.
+**Automatic mode** reads an existing JSON configuration file and runs the pipeline without any user interaction. Running without a config file applies linear interpolation to all components. This is designed for HPC environments and reproducible re-analysis.
 
 A common workflow is to use interactive mode once to create and validate your configuration, then switch to automatic mode for production runs.
 
