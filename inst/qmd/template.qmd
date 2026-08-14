@@ -65,7 +65,8 @@ no_subsetting <- !subsetting
 ```{r load-data}
 #| eval: !expr no_subsetting
 #| echo: !expr no_subsetting
-bidsdata <- bids_parse_study(params$studypath)
+bidsdata <- bids_parse_study(params$studypath) %>%
+  ungroup()
 
 extra_pet_details <- map(bidsdata$petinfo,
                            get_filterable_attributes) %>%
@@ -87,7 +88,7 @@ bidsdata$fulltitle <- attributes_to_title(bidsdata, all_attributes = T)
 # Subsetting
 
 ### Extract measurement information
-measurements <- bids_parse_files(params$studypath) %>%
+measurements <- bids_parse_filenames(params$studypath) %>%
   mutate(petinfo = map(filedata,
                             kinfitr:::bids_parse_petinfo))
 
@@ -107,6 +108,17 @@ measurements <- bind_cols(extra_pet_details, measurements) %>%
 
 
 ### Filter
+# The parser no longer fills in entities a filename does not carry, so a
+# subset naming an attribute this dataset does not use must say so rather
+# than fail inside the join.
+missing_subset_attributes <- setdiff(colnames(config_subset),
+                                     colnames(measurements))
+if (length(missing_subset_attributes) > 0) {
+  stop("The config subsets on attributes not present in this dataset: ",
+       paste(missing_subset_attributes, collapse = ", "),
+       ". No filename carries the entity, or no PET sidecar carries the field.")
+}
+
 measurements <- measurements %>%
   inner_join(config_subset, 
              by = colnames(config_subset))

@@ -18,7 +18,7 @@ Imports:
     glue,
     gratia,
     jsonlite,
-    kinfitr (>= 0.7.1),
+    kinfitr (>= 0.9.3),
     later,
     optparse,
     purrr,
