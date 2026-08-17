@@ -29,6 +29,10 @@ library(glue)
 library(kinfitr)
 library(bloodstream)
 
+# Fixed seed. Model fitting here draws random starting values, so without a
+# seed a re-run of the same configuration gives slightly different numbers.
+set.seed(123)
+
 configpath <- params$configpath
 configname <- basename(configpath)
 
