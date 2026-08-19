@@ -7,3 +7,4 @@
 ^CLAUDE\.md$
 ^plan\.md$
 docs/*
+^\.claude$
