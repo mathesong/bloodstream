@@ -32,6 +32,10 @@ library(glue)
 library(kinfitr)
 library(bloodstream)
 
+# Fixed seed. Model fitting here draws random starting values, so without a
+# seed a re-run of the same configuration gives slightly different numbers.
+set.seed(123)
+
 configpath <- params$configpath
 configname <- basename(configpath)
 
@@ -58,14 +62,19 @@ str(config$Model)
 ```{r}
 #| echo: false
 
-subsetting <- (ncol(config_subset) > 0)
+# An exclusion-only configuration ("-H01" in a field) contributes no columns to
+# the inclusion grid, so counting columns alone would read it as "no subsetting
+# requested" and silently skip it.
+subsetting <- (ncol(config_subset) > 0) ||
+  length(attr(config_subset, "exclusions") %||% list()) > 0
 no_subsetting <- !subsetting
 ```
 
 ```{r load-data}
 #| eval: !expr no_subsetting
 #| echo: !expr no_subsetting
-bidsdata <- bids_parse_study(params$studypath)
+bidsdata <- bids_parse_study(params$studypath) %>%
+  ungroup()
 
 extra_pet_details <- map(bidsdata$petinfo,
                            get_filterable_attributes) %>%
@@ -87,7 +96,7 @@ bidsdata$fulltitle <- attributes_to_title(bidsdata, all_attributes = T)
 # Subsetting
 
 ### Extract measurement information
-measurements <- bids_parse_files(params$studypath) %>%
+measurements <- bids_parse_filenames(params$studypath) %>%
   mutate(petinfo = map(filedata,
                             kinfitr:::bids_parse_petinfo))
 
@@ -107,9 +116,10 @@ measurements <- bind_cols(extra_pet_details, measurements) %>%
 
 
 ### Filter
-measurements <- measurements %>%
-  inner_join(config_subset, 
-             by = colnames(config_subset))
+# Keeps what the Subsets block includes and drops what it excludes. An
+# attribute the dataset does not carry is reported here rather than failing
+# deep inside the join.
+measurements <- apply_config_subsets(measurements, config_subset)
 
 
 ### Continue to process

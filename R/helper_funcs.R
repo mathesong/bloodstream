@@ -259,6 +259,7 @@ get_petname <- function(filedata) {
 #' @export
 attributes_to_title <- function(bidsdata, all_attributes = FALSE) {
 
+  bidsdata <- dplyr::ungroup(bidsdata)
 
   if( !all_attributes ) {
     if(nrow(bidsdata) > 1) {
@@ -266,8 +267,13 @@ attributes_to_title <- function(bidsdata, all_attributes = FALSE) {
       bidsdata <- bidsdata[,which(!apply(bidsdata, 2,
                                          FUN = function(x) length(unique(x))==1))]
     } else {
-      # Situation if only one PET
-      bidsdata <- dplyr::select(bidsdata, sub, ses, task, filedata)
+      # Situation if only one PET. Keep whichever identifying entities the
+      # filenames actually carry: kinfitr no longer fills in entities a
+      # filename omits, so a study without task has no task column at all.
+      bidsdata <- dplyr::select(bidsdata,
+                                dplyr::any_of(c("sub", "ses", "task",
+                                                "trc", "rec", "run")),
+                                filedata)
     }
   }
 
@@ -285,7 +291,12 @@ attributes_to_title <- function(bidsdata, all_attributes = FALSE) {
 
   for(j in 1:nrow(attributes)) {
     for(i in 1:length(cname_attributes)) {
-      title[j] <- paste0(title[j], cname_attributes[i], "-", attributes[j,i], "_")
+      value <- attributes[[i]][j]
+      # An entity absent from this measurement's filenames is NA in a study
+      # where other measurements carry it; it is not part of this
+      # measurement's identity.
+      if (is.na(value) || value == "") next
+      title[j] <- paste0(title[j], cname_attributes[i], "-", value, "_")
     }
   }
 
