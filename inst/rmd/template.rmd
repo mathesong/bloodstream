@@ -61,7 +61,11 @@ str(config$Model)
 ```{r}
 #| echo: false
 
-subsetting <- (ncol(config_subset) > 0)
+# An exclusion-only configuration ("-H01" in a field) contributes no columns to
+# the inclusion grid, so counting columns alone would read it as "no subsetting
+# requested" and silently skip it.
+subsetting <- (ncol(config_subset) > 0) ||
+  length(attr(config_subset, "exclusions") %||% list()) > 0
 no_subsetting <- !subsetting
 ```
 
@@ -100,20 +104,10 @@ measurements <- bind_cols(extra_pet_details, measurements) %>%
 
 
 ### Filter
-# The parser no longer fills in entities a filename does not carry, so a
-# subset naming an attribute this dataset does not use must say so rather
-# than fail inside the join.
-missing_subset_attributes <- setdiff(colnames(config_subset),
-                                     colnames(measurements))
-if (length(missing_subset_attributes) > 0) {
-  stop("The config subsets on attributes not present in this dataset: ",
-       paste(missing_subset_attributes, collapse = ", "),
-       ". No filename carries the entity, or no PET sidecar carries the field.")
-}
-
-measurements <- measurements %>%
-  inner_join(config_subset, 
-             by = colnames(config_subset))
+# Keeps what the Subsets block includes and drops what it excludes. An
+# attribute the dataset does not carry is reported here rather than failing
+# deep inside the join.
+measurements <- apply_config_subsets(measurements, config_subset)
 
 
 ### Continue to process
