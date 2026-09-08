@@ -20,8 +20,17 @@ classifiers = [
   "Topic :: Scientific/Engineering :: Medical Science Apps."
 ]
 
+[project.urls]
+Homepage = "https://github.com/mathesong/bloodstream"
+Documentation = "https://bloodstream.readthedocs.io"
+Source = "https://github.com/mathesong/bloodstream/tree/main/wrapper"
+Issues = "https://github.com/mathesong/bloodstream/issues"
+
 [project.scripts]
 bloodstream-docker = "bloodstream_docker.cli:main"
+
+[tool.setuptools]
+license-files = ["LICENSE"]
 
 [tool.setuptools.dynamic]
 version = { attr = "bloodstream_docker._version.__version__" }
