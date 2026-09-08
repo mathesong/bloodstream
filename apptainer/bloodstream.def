@@ -1,0 +1,101 @@
+Bootstrap: docker
+From: rocker/shiny-verse:latest
+
+%labels
+    Author mathesong
+    Version 0.2.4
+    Description bloodstream PET BIDS blood processing pipeline
+
+%arguments
+    USER_ID=1000
+    GROUP_ID=1000
+    USER_NAME=bloodstream
+
+%files
+    # Copy the bloodstream app package files
+    . /app/
+
+    # Copy the container entry point (shared with Docker)
+    docker/run_bloodstream.R /app/run_bloodstream.R
+
+%post
+    # Install system dependencies
+    apt-get update && apt-get install -y \
+        libcurl4-openssl-dev \
+        libssl-dev \
+        libxml2-dev \
+        libgit2-dev \
+        wget \
+        && rm -rf /var/lib/apt/lists/*
+
+    # Install Quarto, used to render the reports
+    wget https://github.com/quarto-dev/quarto-cli/releases/download/v1.3.450/quarto-1.3.450-linux-amd64.deb \
+        && dpkg -i quarto-1.3.450-linux-amd64.deb \
+        && rm quarto-1.3.450-linux-amd64.deb
+
+    # Create user and group with specified IDs
+    if ! getent group {{ GROUP_ID }}; then groupadd -g {{ GROUP_ID }} {{ USER_NAME }}; fi
+    if ! getent passwd {{ USER_ID }}; then useradd -u {{ USER_ID }} -g {{ GROUP_ID }} -m -s /bin/bash {{ USER_NAME }}; fi
+
+    # Install additional R packages required by bloodstream
+    /usr/local/bin/install2.r --error --skipinstalled \
+        optparse \
+        remotes \
+        && rm -rf /tmp/downloaded_packages/ /tmp/*.rds
+
+    # Install kinfitr from GitHub (bloodstream dependency)
+    R -e "remotes::install_github('mathesong/kinfitr', dependencies = TRUE)"
+
+    # Install bloodstream from the local source copied into /app
+    R -e "devtools::install('/app', dependencies = TRUE)"
+
+    chmod +x /app/run_bloodstream.R
+    chown -R {{ USER_ID }}:{{ GROUP_ID }} /app
+
+    # Create data directory and set permissions
+    mkdir -p /data
+    chown -R {{ USER_ID }}:{{ GROUP_ID }} /data
+
+    # Make Quarto's Deno tools directory world-writable so any UID can create
+    # the TypeScript compiler cache (gen/). Quarto 1.3.x's launcher script
+    # overwrites the DENO_DIR env-var with a local variable, so setting DENO_DIR
+    # is not effective — the directory permissions must be fixed instead.
+    chmod -R a+rwX /opt/quarto/bin/tools/deno-x86_64-unknown-linux-gnu
+
+%environment
+    # LC_ALL must name a UTF-8 locale: plain "C" overrides the base image's
+    # UTF-8 setting, and R then reports "strings not representable in native
+    # encoding" for any non-ASCII participant field or path.
+    export LC_ALL=C.UTF-8
+    export LANG=C.UTF-8
+    export PATH=/app:$PATH
+    # Writable cache for the non-root user Apptainer runs as
+    export XDG_CACHE_HOME=/tmp/.cache
+
+%runscript
+    exec /app/run_bloodstream.R "$@"
+
+%help
+    This container runs the bloodstream PET BIDS blood processing pipeline.
+
+    Usage examples:
+
+    Interactive config app:
+    apptainer run bloodstream_latest.sif --mode interactive
+
+    Run the pipeline with a config file:
+    apptainer run \
+      -B /path/to/bids:/data/bids_dir:ro \
+      -B /path/to/derivatives:/data/derivatives_dir:rw \
+      -B /path/to/config.json:/config.json:ro \
+      bloodstream_latest.sif
+
+    Bare host paths, relying on Apptainer's home auto-mount:
+    apptainer run bloodstream_latest.sif \
+      --bids_dir ~/data/bids --derivatives_dir ~/data/derivatives
+
+    The bloodstream-docker wrapper can generate these commands for you:
+    bloodstream-docker --apptainer /path/to/bids /path/to/derivatives participant
+
+    For detailed usage information, see the documentation at
+    https://bloodstream.readthedocs.io

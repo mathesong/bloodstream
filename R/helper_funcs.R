@@ -33,9 +33,13 @@ get_filterable_attributes <- function(list) {
 #' @param package_version The version of bloodstream used
 #' @param selected_models A named list indicating which components used AIC-based model selection,
 #'   with the selected model as the value (e.g., list(ParentFraction = "Hill"))
+#' @param merged_runs The number of measurements whose runs were combined into
+#'   one blood curve. Zero, the default, leaves run merging unmentioned.
 #' @return A character string containing the formatted methods text
 #' @export
-generate_methods_boilerplate <- function(config, package_version = NULL, selected_models = NULL) {
+generate_methods_boilerplate <- function(config, package_version = NULL,
+                                         selected_models = NULL,
+                                         merged_runs = 0) {
 
   # Get package version if not provided
   if (is.null(package_version)) {
@@ -64,7 +68,17 @@ generate_methods_boilerplate <- function(config, package_version = NULL, selecte
       "HGAM" = "hierarchical generalized additive model (HGAM)",
       "Constant" = "constant model",
       "Linear" = "linear model",
-      "Linear Rise, Triexponential Decay" = "triexponential decay with linear rise",
+      "Triexponential Decay" = {
+        # The rise is either interpolated through the measured samples, with
+        # only the decay fitted, or fitted as a straight line along with it.
+        if (identical(component_config$rise, "linear")) {
+          "triexponential decay with a linear rise"
+        } else {
+          "triexponential decay with the rise interpolated through the measured samples"
+        }
+      },
+      # The name this model went by when the rise was always a straight line
+      "Linear Rise, Triexponential Decay" = "triexponential decay with a linear rise",
       "Feng" = "Feng model",
       "FengConv" = "Feng model with convolution",
       "Splines" = "spline-based modeling",
@@ -132,6 +146,17 @@ generate_methods_boilerplate <- function(config, package_version = NULL, selecte
 
   # Build the methods text
   processing_sentences <- c()
+
+  # Run merging comes first: it says what a measurement is, before anything
+  # about how its curves were described.
+  if (merged_runs > 0) {
+    processing_sentences <- c(
+      processing_sentences,
+      paste0("For ", merged_runs, " measurement",
+             ifelse(merged_runs > 1, "s", ""),
+             ", the blood data of several runs of the same injection were ",
+             "combined into a single curve, and modelled together."))
+  }
 
   # 1. Model selection components
   if (length(selected_comps) > 0) {

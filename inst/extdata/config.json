@@ -10,6 +10,7 @@
     "InstitutionName": [""],
     "PharmaceuticalName": [""]
   },
+  "MergeRuns": [true],
   "Model": {
     "ParentFraction": {
       "Method": ["Interpolation"],
@@ -28,6 +29,7 @@
     },
     "AIF": {
       "Method": ["Interpolation"],
+      "rise": ["interp"],
       "starttime": [0],
       "endtime": ["Inf"],
       "expdecay_props": ["NA", "NA"],

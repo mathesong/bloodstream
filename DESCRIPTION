@@ -1,7 +1,7 @@
 Package: bloodstream
 Type: Package
 Title: PET BIDS Blood Processing Pipeline
-Version: 0.2.3
+Version: 0.2.4
 Author: Granville J. Matheson
 Maintainer: Granville J. Matheson <mathesong@gmail.com>
 Description: bloodstream is a blood processing pipeline which 
@@ -18,7 +18,7 @@ Imports:
     glue,
     gratia,
     jsonlite,
-    kinfitr (>= 0.9.3),
+    kinfitr (>= 0.9.6),
     later,
     optparse,
     purrr,

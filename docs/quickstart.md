@@ -10,6 +10,15 @@ The interactive app launches a Shiny web interface where you can configure model
 
 `````{tab-set}
 
+````{tab-item} bloodstream-docker
+```bash
+pip install bloodstream-docker
+
+bloodstream-docker /path/to/bids /path/to/derivatives participant
+# Then open http://localhost:3838
+```
+````
+
 ````{tab-item} Docker
 ```bash
 docker run -it --rm \
@@ -23,12 +32,13 @@ docker run -it --rm \
 
 ````{tab-item} Apptainer
 ```bash
-apptainer run \
-  --bind /path/to/bids:/data/bids_dir \
-  --bind /path/to/derivatives:/data/derivatives_dir \
+apptainer run --cleanenv \
+  -B /path/to/bids:/data/bids_dir:ro \
+  -B /path/to/derivatives:/data/derivatives_dir:rw \
+  -B /tmp:/tmp \
   bloodstream_latest.sif \
   --mode interactive
-# Then open http://localhost:3838
+# Then open the address the container prints
 ```
 ````
 
@@ -50,6 +60,14 @@ If you already have a configuration file (e.g. from the interactive app), you ca
 
 `````{tab-set}
 
+````{tab-item} bloodstream-docker
+```bash
+bloodstream-docker /path/to/bids /path/to/derivatives participant \
+  --config /path/to/config.json \
+  --automatic
+```
+````
+
 ````{tab-item} Docker
 ```bash
 docker run --rm \
@@ -62,10 +80,11 @@ docker run --rm \
 
 ````{tab-item} Apptainer
 ```bash
-apptainer run \
-  --bind /path/to/bids:/data/bids_dir \
-  --bind /path/to/derivatives:/data/derivatives_dir \
-  --bind /path/to/config.json:/config.json \
+apptainer run --cleanenv \
+  -B /path/to/bids:/data/bids_dir:ro \
+  -B /path/to/derivatives:/data/derivatives_dir:rw \
+  -B /path/to/config.json:/config.json:ro \
+  -B /tmp:/tmp \
   bloodstream_latest.sif
 ```
 ````
@@ -87,6 +106,12 @@ Running without a config file applies linear interpolation to all blood componen
 
 `````{tab-set}
 
+````{tab-item} bloodstream-docker
+```bash
+bloodstream-docker /path/to/bids /path/to/derivatives participant --automatic
+```
+````
+
 ````{tab-item} Docker
 ```bash
 docker run --rm \
@@ -98,9 +123,10 @@ docker run --rm \
 
 ````{tab-item} Apptainer
 ```bash
-apptainer run \
-  --bind /path/to/bids:/data/bids_dir \
-  --bind /path/to/derivatives:/data/derivatives_dir \
+apptainer run --cleanenv \
+  -B /path/to/bids:/data/bids_dir:ro \
+  -B /path/to/derivatives:/data/derivatives_dir:rw \
+  -B /tmp:/tmp \
   bloodstream_latest.sif
 ```
 ````

@@ -2,3 +2,13 @@
 .Rproj.user
 docs/_build*
 .Rbuildignore
+
+# Python (wrapper/)
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# Editor swap files
+*.kate-swp

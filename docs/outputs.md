@@ -42,7 +42,10 @@ BIDS-required metadata file describing the derivative dataset.
 
 ### Per-measurement files
 
-For each PET measurement, bloodstream produces:
+For each PET measurement, bloodstream produces the files below. The filenames
+carry the BIDS entities of the measurement they describe. A measurement whose
+runs were combined (see [combining runs](usage/configuration.md#combining-runs))
+carries no `run` entity, since its curve belongs to all of them.
 
 #### *_inputfunction.tsv
 

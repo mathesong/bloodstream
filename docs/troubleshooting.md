@@ -14,7 +14,7 @@
 
 **Symptom:** Error when starting interactive mode about port 3838 being in use.
 
-**Fix:** Map to a different host port: `-p 8080:3838` instead of `-p 3838:3838`.
+**Fix:** Map to a different host port: `-p 8080:3838` instead of `-p 3838:3838`, or `--port 8080` with the `bloodstream-docker` wrapper. Under Apptainer, which shares the host network, the container finds the next free port itself and prints the address to use.
 
 ## Apptainer / HPC issues
 
@@ -24,10 +24,10 @@
 
 ### Home directory size limits
 
-**Fix:** Set `SINGULARITY_CACHEDIR` to a scratch directory:
+**Fix:** Set `APPTAINER_CACHEDIR` to a scratch directory:
 
 ```bash
-export SINGULARITY_CACHEDIR=/scratch/$USER/singularity_cache
+export APPTAINER_CACHEDIR=/scratch/$USER/apptainer_cache
 ```
 
 ### Module loading
@@ -35,8 +35,8 @@ export SINGULARITY_CACHEDIR=/scratch/$USER/singularity_cache
 Common module names:
 
 ```bash
-module load singularity
 module load apptainer
+module load singularity
 module load singularity-ce
 ```
 
@@ -47,10 +47,12 @@ module load singularity-ce
 **Fix:** Use the `--writable-tmpfs` flag:
 
 ```bash
-apptainer run --writable-tmpfs \
-  --bind /path/to/bids:/data/bids_dir \
+apptainer run --writable-tmpfs --cleanenv \
+  -B /path/to/bids:/data/bids_dir:ro \
   bloodstream_latest.sif
 ```
+
+Report rendering writes to `/tmp`, so binding it (`-B /tmp:/tmp`) usually solves this on its own.
 
 ## Model fitting issues
 
