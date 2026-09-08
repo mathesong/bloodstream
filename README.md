@@ -130,6 +130,24 @@ Alternatively, you can build the container locally using the file `docker/docker
 docker build -f docker/dockerfile -t mathesong/bloodstream:latest . --platform linux/amd64
 ```
 
+### The bloodstream-docker wrapper
+
+The easiest way to drive the image is the `bloodstream-docker` command-line wrapper, which turns a BIDS-App-style command into the matching `docker run` invocation, mapping your directories into the container for you:
+
+```bash
+pip install bloodstream-docker
+
+# Launch the config app, which can also run the pipeline
+bloodstream-docker /path/to/bids /path/to/derivatives participant
+
+# Run the pipeline with a config file
+bloodstream-docker /path/to/bids /path/to/derivatives participant \
+  --config /path/to/config.json \
+  --automatic
+```
+
+Run `bloodstream-docker --help` to see all options, and `--dry-run` to print the command it would run. It also generates Apptainer commands, with `--apptainer`. The raw `docker run` commands below all remain available.
+
 ### Docker Usage
 
 The Docker container supports both interactive and non-interactive modes:
@@ -221,7 +239,9 @@ docker run \
 ### Docker Command Line Options
 
 - `--mode`: Execution mode (`interactive` or `non-interactive` [default])
+- `--config`: Path to a config file (auto-detected at `/config.json` if mounted there)
 - `--analysis_foldername`: Custom name for analysis subfolder (overrides config filename)
+- `--bids_dir` / `--derivatives_dir`: Explicit paths inside the container, instead of the `/data/bids_dir` and `/data/derivatives_dir` mount points (useful with Apptainer's home auto-mounts)
 
 ### Docker File Permissions Note
 
@@ -284,6 +304,18 @@ To build the container from Docker Hub and save it as a local `.sif` file:
 ```bash
 apptainer build bloodstream.sif docker://mathesong/bloodstream:latest
 ```
+
+The `bloodstream-docker` wrapper generates Apptainer commands as well as Docker ones:
+
+```bash
+bloodstream-docker /path/to/bids /path/to/derivatives participant \
+  --apptainer \
+  --config /path/to/config.json \
+  --automatic \
+  --image bloodstream.sif
+```
+
+The definition file in `apptainer/bloodstream.def` is there if you need to build the image from source rather than converting the Docker one.
 
 ### Running bloodstream (no config file)
 

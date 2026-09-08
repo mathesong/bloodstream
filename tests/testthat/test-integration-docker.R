@@ -98,8 +98,8 @@ test_that("Docker: output contains expected log markers", {
   result <- run_bloodstream_docker(ws, config_path = config_path)
   output_text <- paste(result$output, collapse = "\n")
 
-  expect_true(grepl("bloodstream Docker Container", output_text, ignore.case = TRUE),
-              info = "Missing 'bloodstream Docker Container' marker")
+  expect_true(grepl("bloodstream Container", output_text, ignore.case = TRUE),
+              info = "Missing 'bloodstream Container' marker")
   expect_true(grepl("Non-Interactive Mode", output_text, ignore.case = TRUE),
               info = "Missing 'Non-Interactive Mode' marker")
   expect_true(grepl("pipeline completed successfully", output_text, ignore.case = TRUE),

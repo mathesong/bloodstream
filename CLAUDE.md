@@ -20,11 +20,15 @@ This is a standard R package with the following key components:
   - `R/config_app.R` contains the Shiny configuration interface with conditional pipeline execution
   - `R/launch_apps.R` provides enhanced app launcher with multiple execution modes
 - **Modelling**: `R/modelling.R` contains model comparison functions for parent fraction analysis
+- **Configuration**: `R/config.R` resolves a config file's defaults and renamed fields
+- **Run merging**: `R/merging.R` combines the runs of a single injection into one blooddata
 - **Plotting**: `R/plotting.R` contains visualization functions for different blood components
 - **Quality Control**: `R/qc.R` contains validation functions for blood processing results
 - **Utilities**: `R/helper_funcs.R` and `R/subsetting.R` contain helper functions
-- **Templates**: `inst/rmd/template.rmd` is the R Markdown template for generating reports
-- **Configuration**: `inst/extdata/config.json` provides default configuration settings
+- **Templates**: `inst/qmd/template.qmd` is the Quarto template used for generating reports; `inst/rmd/template.rmd` is the older R Markdown one
+- **Default config**: `inst/extdata/config.json` provides default configuration settings
+- **Containers**: `docker/dockerfile` and `apptainer/bloodstream.def` build the image; `docker/run_bloodstream.R` is the shared container entrypoint
+- **CLI wrapper**: `wrapper/` holds `bloodstream-docker`, a Python package (published to PyPI) that turns a BIDS-App-style command line into the matching `docker run` or `apptainer run` invocation
 
 ## Key Dependencies
 
@@ -57,6 +61,19 @@ bloodstream(bids_dir = "/path/to/study")  # Default config
 bloodstream(bids_dir = "/path/to/study", configpath = "/path/to/config.json")  # Custom config
 bloodstream_interactive()  # Standalone config creation
 bloodstream_interactive(bids_dir = "/path/to/study")  # With data
+```
+
+### CLI wrapper Development
+```bash
+# Install the wrapper for local development
+pip install -e wrapper/
+
+# Run its tests
+cd wrapper && python3 -m unittest discover -s tests
+
+# Print a command without running it
+bloodstream-docker /path/to/bids /path/to/derivatives participant --dry-run
+bloodstream-docker /path/to/bids /path/to/derivatives participant --apptainer --dry-run
 ```
 
 ### Docker Development
@@ -120,9 +137,14 @@ docker run \
 ### Configuration System
 The package uses JSON configuration files to specify:
 - Data subsets (subject, session, tracer, institution filters)
+- Whether the runs of a measurement are combined into one blood curve (`MergeRuns`)
 - Modelling methods for each blood component
 - Time ranges and model parameters
 - Model comparison criteria (AIC-based selection)
+
+`resolve_config()` fills in absent fields and translates renamed ones, and is
+called wherever a config is read (both templates and the config app) so that
+they agree on defaults and names.
 
 ### Key Functions
 - `bloodstream()`: Main pipeline function with flexible parameters (bids_dir, configpath, derivatives_dir, analysis_foldername, template_path)
@@ -132,16 +154,19 @@ The package uses JSON configuration files to specify:
 - `plot_*_preds()`: Visualization functions for each blood component  
 - `qc_*()`: Quality control validation functions
 - `get_filterable_attributes()`: Extract metadata for filtering
+- `resolve_config()`: Fill in a config's absent fields and translate its renamed ones
+- `merge_runs()`/`merge_blooddata()`: Combine the runs of a single injection
 
 ## Report Template
 
-The R Markdown template (`inst/rmd/template.rmd`) generates comprehensive reports including:
+The Quarto template (`inst/qmd/template.qmd`) generates comprehensive reports including:
 - Model fitting results and comparisons
 - Before/after plots for each blood component
 - Quality control metrics
 - Processing configuration details
 
-The template uses parameterized rendering with `studypath` and `configpath` parameters.
+The template uses parameterized rendering with `studypath`, `configpath`,
+`derivatives_dir` and `analysis_foldername` parameters.
 
 ## Docker Integration
 

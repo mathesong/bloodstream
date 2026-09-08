@@ -1,23 +1,27 @@
 #!/usr/bin/env Rscript
 
-# Docker entry script for bloodstream apps
+# Container entry script for bloodstream apps (Docker and Apptainer)
 # Supports both interactive and non-interactive modes with flexible directory mounting
 
 library(optparse)
 
 # Define command line options
 option_list <- list(
-  make_option(c("--mode"), type="character", default="non-interactive", 
+  make_option(c("--mode"), type="character", default="non-interactive",
               help="Execution mode: 'interactive' or 'non-interactive' [default: non-interactive]"),
-  make_option(c("--config"), type="character", default=NULL, 
+  make_option(c("--config"), type="character", default=NULL,
               help="Path to config file [optional]"),
-  make_option(c("--analysis_foldername"), type="character", default=NULL, 
-              help="Name for analysis subfolder [optional - defaults to config filename]")
+  make_option(c("--analysis_foldername"), type="character", default=NULL,
+              help="Name for analysis subfolder [optional - defaults to config filename]"),
+  make_option(c("--bids_dir"), type="character", default=NULL,
+              help="Explicit BIDS directory path inside container (optional; useful with Apptainer home auto-mounts)"),
+  make_option(c("--derivatives_dir"), type="character", default=NULL,
+              help="Explicit derivatives directory path inside container (optional; useful with Apptainer home auto-mounts)")
 )
 
 # Parse arguments
 opt_parser <- OptionParser(option_list=option_list, 
-                          description="Docker entry point for bloodstream apps")
+                          description="Container entry point for bloodstream apps")
 opt <- parse_args(opt_parser)
 
 # Validate arguments
@@ -25,7 +29,7 @@ if (!opt$mode %in% c("interactive", "non-interactive")) {
   stop("--mode must be 'interactive' or 'non-interactive'", call.=FALSE)
 }
 
-cat("=== bloodstream Docker Container ===\n")
+cat("=== bloodstream Container ===\n")
 cat("Mode:", opt$mode, "\n")
 if (!is.null(opt$config)) {
   cat("Config file:", opt$config, "\n")
@@ -37,14 +41,25 @@ cat("\n")
 
 # Detect mounted directories
 detect_mounted_directories <- function() {
-  bids_available <- dir.exists("/data/bids_dir")
-  derivatives_available <- dir.exists("/data/derivatives_dir")
-  
+  # Prefer explicit paths when provided, otherwise fall back to the conventional
+  # bind mount locations used by the wrapper and the documented container calls.
+  bids_candidate <- if (is.null(opt$bids_dir)) "/data/bids_dir" else opt$bids_dir
+  derivatives_candidate <- if (is.null(opt$derivatives_dir)) "/data/derivatives_dir" else opt$derivatives_dir
+
+  bids_available <- dir.exists(bids_candidate)
+  derivatives_available <- dir.exists(derivatives_candidate)
+
   cat("=== Directory Detection ===\n")
-  cat("BIDS directory mounted:", bids_available, "\n")
-  cat("Derivatives directory mounted:", derivatives_available, "\n")
+  cat("BIDS directory available:", bids_available, "\n")
+  cat("Derivatives directory available:", derivatives_available, "\n")
+  if (!is.null(opt$bids_dir)) {
+    cat("BIDS explicit path:", bids_candidate, "\n")
+  }
+  if (!is.null(opt$derivatives_dir)) {
+    cat("Derivatives explicit path:", derivatives_candidate, "\n")
+  }
   cat("\n")
-  
+
   # For interactive mode:
   #   - Standalone config creation: no directories required
   #   - With pipeline execution: both bids_dir and derivatives_dir required
@@ -52,22 +67,22 @@ detect_mounted_directories <- function() {
   if (opt$mode == "interactive") {
     # If bids_dir is provided, derivatives_dir is required for pipeline execution
     if (bids_available && !derivatives_available) {
-      stop("Interactive mode with BIDS directory requires derivatives_dir for pipeline execution. Mount at /data/derivatives_dir with read-write access.", call.=FALSE)
+      stop(paste0("Interactive mode with BIDS directory requires derivatives_dir for pipeline execution. Mount at ", derivatives_candidate, " with read-write access."), call.=FALSE)
     }
   } else {
     if (!bids_available) {
-      stop("Non-interactive mode requires bids_dir to be mounted at /data/bids_dir", call.=FALSE)
+      stop(paste0("Non-interactive mode requires bids_dir to be available at ", bids_candidate), call.=FALSE)
     }
     if (!derivatives_available) {
-      stop("Non-interactive mode requires derivatives_dir to be mounted with read-write access at /data/derivatives_dir", call.=FALSE)
+      stop(paste0("Non-interactive mode requires derivatives_dir to be available with read-write access at ", derivatives_candidate), call.=FALSE)
     }
   }
 
   # Check that derivatives_dir is writable (Docker creates root-owned dirs for
   # non-existent host paths, which causes permission errors later)
-  if (derivatives_available && file.access("/data/derivatives_dir", mode = 2) != 0) {
+  if (derivatives_available && file.access(derivatives_candidate, mode = 2) != 0) {
     stop(paste0(
-      "The derivatives directory at /data/derivatives_dir is not writable.\n",
+      "The derivatives directory at ", derivatives_candidate, " is not writable.\n",
       "This usually happens when the host directory does not exist before mounting.\n",
       "Docker creates missing mount paths as root, making them unwritable.\n\n",
       "To fix this, create the directory on the host before running the container:\n\n",
@@ -75,15 +90,68 @@ detect_mounted_directories <- function() {
       "  docker run ... -v /path/to/derivatives:/data/derivatives_dir:rw ...\n"
     ), call.=FALSE)
   }
-  
+
   # Set directory paths based on what's available
-  bids_dir <- if(bids_available) "/data/bids_dir" else NULL
-  derivatives_dir <- if(derivatives_available) "/data/derivatives_dir" else NULL
-  
+  bids_dir <- if(bids_available) bids_candidate else NULL
+  derivatives_dir <- if(derivatives_available) derivatives_candidate else NULL
+
   return(list(
     bids_dir = bids_dir,
     derivatives_dir = derivatives_dir
   ))
+}
+
+# Determine an available localhost port near the preferred one.
+is_port_available <- function(port) {
+  con <- suppressWarnings(
+    tryCatch(
+      socketConnection(host = "127.0.0.1", port = port, open = "r+", blocking = TRUE, timeout = 0.2),
+      error = function(e) NULL
+    )
+  )
+
+  if (is.null(con)) {
+    return(TRUE)
+  }
+
+  close(con)
+  FALSE
+}
+
+find_open_port <- function(start_port = 3838L, max_offset = 20L) {
+  for (offset in seq.int(0L, max_offset)) {
+    candidate <- start_port + offset
+    if (is_port_available(candidate)) {
+      return(candidate)
+    }
+  }
+
+  stop(
+    "Could not find an open port between ", start_port, " and ", start_port + max_offset,
+    call. = FALSE
+  )
+}
+
+# Patch: reinstall bloodstream from a mounted local checkout, if present.
+# The wrapper's --patch option bind-mounts a host bloodstream source tree to
+# /patch/bloodstream. We reinstall it into a user-writable library (prepended to
+# .libPaths) so the non-root container user can overwrite the baked-in package
+# and library(bloodstream) below loads the patched copy.
+patch_dir <- "/patch/bloodstream"
+if (dir.exists(patch_dir)) {
+  cat("=== Patch detected ===\n")
+  cat("Reinstalling bloodstream from mounted source:", patch_dir, "\n")
+  patch_lib <- file.path(tempdir(), "bloodstream_patchlib")
+  dir.create(patch_lib, showWarnings = FALSE, recursive = TRUE)
+  .libPaths(c(patch_lib, .libPaths()))
+  devtools::install(
+    patch_dir,
+    dependencies = FALSE,   # dependencies are already installed in the image
+    upgrade = FALSE,        # never upgrade deps
+    quick = TRUE,           # skip vignette/manual rebuild for faster startup
+    quiet = FALSE
+  )
+  cat("\n")
 }
 
 # Load bloodstream package
@@ -119,11 +187,32 @@ cat("\n")
 
 # Execute based on mode
 if (opt$mode == "interactive") {
+  # rocker/shiny images can carry Shiny Server environment variables. When
+  # launched through runApp(), Shiny may try to parse these and fail if the
+  # value is not a plain version string.
+  Sys.unsetenv("SHINY_SERVER_VERSION")
+
+  requested_port_value <- Sys.getenv("BLOODSTREAM_SHINY_PORT", unset = NA_character_)
+  if (is.na(requested_port_value) || requested_port_value == "") {
+    requested_port_value <- Sys.getenv("SHINY_PORT", unset = "3838")
+  }
+  Sys.unsetenv("SHINY_PORT")
+
+  requested_port <- suppressWarnings(as.integer(requested_port_value))
+  if (is.na(requested_port) || requested_port < 1L || requested_port > 65535L) {
+    requested_port <- 3838L
+  }
+  selected_port <- find_open_port(requested_port)
+  if (selected_port != requested_port) {
+    cat("Requested Shiny port", requested_port, "is in use. Using", selected_port, "instead.\n")
+  }
+  Sys.setenv(BLOODSTREAM_SHINY_PORT = as.character(selected_port))
+
   cat("=== Starting Interactive Mode ===\n")
-  cat("Shiny app will be available at http://localhost:3838\n")
+  cat("Shiny app will be available at http://localhost:", selected_port, "\n", sep = "")
   cat("Container will exit when app is closed\n")
   cat("\n")
-  
+
   # Determine config file for interactive mode
   config_for_app <- NULL
   if (!is.null(opt$config)) {
@@ -142,7 +231,7 @@ if (opt$mode == "interactive") {
       configpath = config_for_app,
       analysis_foldername = analysis_folder,
       host = "0.0.0.0",  # Important for Docker
-      port = 3838
+      port = selected_port
     )
   }, error = function(e) {
     cat("ERROR launching Shiny app:", e$message, "\n")

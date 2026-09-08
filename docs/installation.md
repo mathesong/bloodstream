@@ -22,25 +22,33 @@ cd bloodstream
 docker build -f docker/dockerfile -t mathesong/bloodstream:latest . --platform linux/amd64
 ```
 
-See [Docker usage](containers/docker.md) for full details on running the container.
+### The bloodstream-docker wrapper
 
-## Singularity / Apptainer
-
-Singularity (now called [Apptainer](https://apptainer.org/)) is the standard container runtime on HPC clusters.
-
-### Pull from the Docker image
+The easiest way to drive the container is the [`bloodstream-docker`](https://pypi.org/project/bloodstream-docker/) command-line wrapper. It turns a simple BIDS-App-style command into the matching `docker run` invocation, mapping your directories into the container for you:
 
 ```bash
-apptainer pull bloodstream_latest.sif docker://mathesong/bloodstream:latest
+pip install bloodstream-docker
+bloodstream-docker --help   # see all options
+```
+
+See [Docker usage](containers/docker.md) for full details on running the container.
+
+## Apptainer
+
+[Apptainer](https://apptainer.org/) (formerly Singularity) is the standard container runtime on HPC clusters.
+
+### Build from the Docker image
+
+```bash
+apptainer build bloodstream_latest.sif docker://mathesong/bloodstream:latest
 ```
 
 ### Prerequisites
 
-- Singularity or Apptainer installed on your system
-- `sudo` access for building (not required for running)
+- Apptainer installed (or Singularity, which uses the same commands)
 - Internet access during the build
 
-See [Singularity usage](containers/singularity.md) for full details, including HPC integration with SLURM, PBS, and LSF.
+`bloodstream-docker --apptainer` generates Apptainer commands too. See [Apptainer usage](containers/apptainer.md) for full details, including HPC integration.
 
 ## R package (for development)
 

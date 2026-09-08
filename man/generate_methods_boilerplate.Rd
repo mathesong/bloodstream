@@ -7,7 +7,8 @@
 generate_methods_boilerplate(
   config,
   package_version = NULL,
-  selected_models = NULL
+  selected_models = NULL,
+  merged_runs = 0
 )
 }
 \arguments{
@@ -17,6 +18,9 @@ generate_methods_boilerplate(
 
 \item{selected_models}{A named list indicating which components used AIC-based model selection,
 with the selected model as the value (e.g., list(ParentFraction = "Hill"))}
+
+\item{merged_runs}{The number of measurements whose runs were combined into
+one blood curve. Zero, the default, leaves run merging unmentioned.}
 }
 \value{
 A character string containing the formatted methods text

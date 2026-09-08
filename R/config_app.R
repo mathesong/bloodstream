@@ -64,6 +64,20 @@ bloodstream_config_app <- function(bids_dir = NULL, derivatives_dir = NULL, conf
         textInput(inputId = "subset_modeadmin", label = "ModeOfAdministration", value = ""),
         textInput(inputId = "subset_institute", label = "InstitutionName", value = ""),
         textInput(inputId = "subset_pharmaceutical", label = "PharmaceuticalName", value = ""),
+
+        h2("Runs"),
+        checkboxInput(inputId = "merge_runs",
+                      label = "Combine the runs of each measurement",
+                      value = TRUE),
+        p(glue::glue("Some tracers are scanned in two blocks from a single ",
+                     "injection, e.g. an early run-01 and a late run-02. Those ",
+                     "runs share one blood curve, so their samples are ",
+                     "combined and one set of derivatives is written out for ",
+                     "them, without a run entity in the filename. ",
+                     "Untick this if the runs in this study are separate ",
+                     "injections, which must be processed separately."),
+          style = "font-size:14px;"
+        ),
       ),
 
       # Main panel for modelling options ----
@@ -178,12 +192,22 @@ bloodstream_config_app <- function(bids_dir = NULL, derivatives_dir = NULL, conf
             selectInput(inputId = "aif_model",
                         label = "AIF model",
                         choices=c("Interpolation",
-                                  "Fit Individually: Linear Rise, Triexponential Decay",
+                                  "Fit Individually: Triexponential Decay",
                                   "Fit Individually: Feng",
                                   "Fit Individually: FengConv",
                                   "Fit Individually: Splines"),
                         selected = "Interpolation",
                         multiple = FALSE),
+            conditionalPanel(
+              condition = "input.aif_model == 'Fit Individually: Triexponential Decay'",
+              checkboxInput(inputId = "aif_interp_rise",
+                            label = "Interpolate the rise through the measured samples",
+                            value = TRUE),
+              div(p("The rise up to the peak is described by linear interpolation ",
+                    "through the samples, and only the decay after the peak is ",
+                    "fitted."),
+                  style = "font-size:12px; margin-left:20px; margin-top:-10px;")
+            ),
             h4("Time subsetting"),
             div(style="display:inline-block",textInput(inputId="aif_starttime", label="from (min)", value = 0)),
             div(style="display:inline-block",textInput(inputId="aif_endtime", label="to (min)", value = Inf)),
@@ -327,7 +351,10 @@ bloodstream_config_app <- function(bids_dir = NULL, derivatives_dir = NULL, conf
     # Load existing config if provided and update inputs
     if (!is.null(configpath) && file.exists(configpath)) {
       tryCatch({
-        config_data <- jsonlite::fromJSON(configpath)
+        # Fills in the fields this config does not carry, and translates the
+        # names of those which have been renamed, so that the controls below
+        # are set from one set of names and defaults.
+        config_data <- resolve_config(jsonlite::fromJSON(configpath))
         cat("Loading config from:", configpath, "\n")
 
         # Update subset inputs
@@ -340,6 +367,8 @@ bloodstream_config_app <- function(bids_dir = NULL, derivatives_dir = NULL, conf
         updateTextInput(session, "subset_modeadmin", value = config_data$Subsets$ModeOfAdministration %||% "")
         updateTextInput(session, "subset_institute", value = config_data$Subsets$InstitutionName %||% "")
         updateTextInput(session, "subset_pharmaceutical", value = config_data$Subsets$PharmaceuticalName %||% "")
+
+        updateCheckboxInput(session, "merge_runs", value = config_data$MergeRuns)
 
         # Update Parent Fraction inputs
         updateSelectInput(session, "pf_model", selected = config_data$Model$ParentFraction$Method %||% "Interpolation")
@@ -357,7 +386,10 @@ bloodstream_config_app <- function(bids_dir = NULL, derivatives_dir = NULL, conf
         updateTextInput(session, "bpr_hgam_opt", value = config_data$Model$BPR$hgam_formula %||% "")
 
         # Update AIF inputs
-        updateSelectInput(session, "aif_model", selected = config_data$Model$AIF$Method %||% "Interpolation")
+        updateSelectInput(session, "aif_model",
+                          selected = config_data$Model$AIF$Method %||% "Interpolation")
+        updateCheckboxInput(session, "aif_interp_rise",
+                            value = (config_data$Model$AIF$rise %||% "interp") != "linear")
         updateTextInput(session, "aif_starttime", value = as.character(config_data$Model$AIF$starttime %||% 0))
         updateTextInput(session, "aif_endtime", value = as.character(config_data$Model$AIF$endtime %||% Inf))
         updateTextInput(session, "aif_expdecay_1", value = as.character(config_data$Model$AIF$expdecay_props[1] %||% ""))
@@ -420,6 +452,7 @@ bloodstream_config_app <- function(bids_dir = NULL, derivatives_dir = NULL, conf
 
       AIF <- list(
         Method = input$aif_model,
+        rise = ifelse(input$aif_interp_rise, "interp", "linear"),
         starttime = as.numeric(input$aif_starttime),
         endtime  = as.numeric(input$aif_endtime),
         expdecay_props = as.numeric(c(input$aif_expdecay_1,
@@ -447,6 +480,7 @@ bloodstream_config_app <- function(bids_dir = NULL, derivatives_dir = NULL, conf
 
       config_list <- list(
         Subsets = Subsets,
+        MergeRuns = input$merge_runs,
         Model = list(
           ParentFraction = ParentFraction,
           BPR = BPR,

@@ -4,9 +4,10 @@ bloodstream uses JSON configuration files to specify which models to apply to ea
 
 ## Overview
 
-A config file has two top-level sections:
+A config file has three top-level sections:
 
 - **Subsets** — Filter which measurements to process (by subject, session, tracer, etc.)
+- **MergeRuns** — Whether the runs of a measurement are combined into one blood curve
 - **Model** — Specify modelling choices for each blood component (Parent Fraction, BPR, AIF, Whole Blood)
 
 ## Data subsetting
@@ -40,6 +41,34 @@ The `Subsets` section filters which PET measurements to include. Leave a field a
 | `ModeOfAdministration` | Filter by administration mode | `"bolus"` |
 | `InstitutionName` | Filter by institution | `""` |
 | `PharmaceuticalName` | Filter by pharmaceutical | `""` |
+
+## Combining runs
+
+Some tracers are scanned in two blocks from a single injection: an early `run-01`
+and a late `run-02`, or `run-early` and `run-late`. Those runs share one blood
+curve, so their samples are combined and modelled together, and one set of
+derivatives is written out for them.
+
+```json
+{
+  "MergeRuns": true
+}
+```
+
+Merging is the default, and it changes nothing in a study with one run per
+measurement. **Set it to `false` if the runs in your study are separate
+injections**, which must be processed separately.
+
+Each run's sample times are placed on the first run's `TimeZero`, since BIDS
+times each run's blood samples from the `TimeZero` of its own acquisition. Runs
+which already share a `TimeZero` need no shift. If a run's `TimeZero` is not a
+clock time — a dataset which sets it to `0`, for instance — the times are
+combined as they are, and the report says so.
+
+A merged measurement carries no `run` entity, since its curve belongs to all of
+its runs: `sub-01_ses-01_run-01_*` and `sub-01_ses-01_run-02_*` produce
+`sub-01_ses-01_inputfunction.tsv`. A measurement with a single run keeps its
+`run` entity, and its filenames are unchanged.
 
 ## Parent Fraction
 
@@ -131,6 +160,7 @@ The AIF describes the time course of radioactivity in arterial plasma after inje
   "Model": {
     "AIF": {
       "Method": "Interpolation",
+      "rise": "interp",
       "starttime": 0,
       "endtime": "Inf",
       "expdecay_props": ["NA", "NA"],
@@ -152,7 +182,7 @@ The AIF describes the time course of radioactivity in arterial plasma after inje
 | Method | Description |
 |--------|-------------|
 | `Interpolation` | Linear interpolation of observed data (default) |
-| `Fit Individually: Linear Rise, Triexponential Decay` | Parametric model with linear rise and three exponential decay components |
+| `Fit Individually: Triexponential Decay` | Parametric model with three exponential decay components, and a rise set by `rise` |
 | `Fit Individually: Feng` | Feng input function model |
 | `Fit Individually: FengConv` | Feng model convolved with infusion duration |
 | `Fit Individually: Splines` | Flexible spline fit |
@@ -161,9 +191,10 @@ The AIF describes the time course of radioactivity in arterial plasma after inje
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
+| `rise` | How the triexponential model describes the rise: `"interp"` or `"linear"` | `"interp"` |
 | `starttime` | Start time in minutes | `0` |
 | `endtime` | End time in minutes | `Inf` |
-| `expdecay_props` | Proportions for exponential decay starting parameters | `[NA, NA]` |
+| `expdecay_props` | Proportions of the decay used to choose starting parameters for the exponentials. `NA` uses the model's own default | `[NA, NA]` |
 | `inftime` | Infusion duration in seconds (required for FengConv) | `NA` |
 | `spline_kb` | Spline k before peak | `""` (auto) |
 | `spline_ka_m` | Spline k after peak (manual samples) | `""` (auto) |

@@ -74,9 +74,16 @@ The AIF describes the time course of radioactivity in arterial plasma after inje
 
 Linear interpolation of the observed data points. Default and often sufficient.
 
-### Linear Rise, Triexponential Decay
+### Triexponential Decay
 
-A parametric model combining a linear rise phase with three exponential decay components. A classic input function model suitable for bolus injections.
+A parametric model with three exponential decay components after the peak. A classic input function model suitable for bolus injections.
+
+The `rise` parameter chooses how the curve up to the peak is described:
+
+- `"interp"` (the default) describes the rise by linear interpolation through
+  the measured samples, and fits only the decay after the peak.
+- `"linear"` fits the rise as a straight line from `t0` to the peak, along with
+  the decay.
 
 ### Feng
 

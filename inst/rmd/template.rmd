@@ -38,11 +38,15 @@ configname <- basename(configpath)
 
 config_suffix <- str_match(configname, "^config_?-?(.*)\\.json")[,2]
 
-config <- jsonlite::fromJSON(configpath)
+# Fills in the fields this config does not carry, and translates the names of
+# those which have been renamed, so that everything below reads one set of
+# names and defaults.
+config <- resolve_config(jsonlite::fromJSON(configpath))
 config_subset <- parse_config_subsets(config)
 
 theme_set(theme_light())
 ```
+
 
 
 
@@ -188,6 +192,50 @@ for(i in 1:nrow(bidsdata)) {
     bidsdata$blooddata[[i]] <- bd_blood_dispcor(bidsdata$blooddata[[i]])
   }
 }
+```
+
+
+```{r, echo=FALSE}
+merge_runs_config <- config$MergeRuns
+```
+
+```{r merge-runs, echo=merge_runs_config}
+# Runs of one injection -- an early and a late block of the same scan --
+# describe one blood curve between them, so their samples are combined and
+# fitted together. A measurement with a single run is left as it is, run
+# entity and all.
+if( merge_runs_config ) {
+
+  bidsdata <- merge_runs(bidsdata)
+
+  # The titles named the runs, which a merged measurement no longer has.
+  bidsdata$pet <- attributes_to_title(bidsdata)
+  bidsdata$fulltitle <- attributes_to_title(bidsdata, all_attributes = T)
+
+} else {
+  bidsdata$merged_runs <- NA_character_
+}
+```
+
+```{r, echo=FALSE}
+merged_any <- any(!is.na(bidsdata$merged_runs))
+```
+
+```{r, echo=FALSE, eval=merged_any}
+#| results: asis
+
+str_glue("The following measurements were made up of several runs, and have ",
+         "been combined. Each run's sample times were placed on the first ",
+         "run's time zero, and the combined data are modelled together and ",
+         "written out as one set of derivatives, without a run entity in the ",
+         "filename.")
+```
+
+```{r merged-runs-table, echo=FALSE, eval=merged_any}
+bidsdata %>%
+  filter(!is.na(merged_runs)) %>%
+  transmute(Measurement = pet, `Runs combined` = merged_runs) %>%
+  kable()
 ```
 
 
@@ -961,7 +1009,7 @@ The selected modelling approach for modelling the arterial input function (AIF) 
 ```{r aif-setup}
 #| echo: false
 
-do_triexp <-(config$Model$AIF$Method=="Fit Individually: Linear Rise, Triexponential Decay")
+do_triexp <-(config$Model$AIF$Method=="Fit Individually: Triexponential Decay")
 do_feng <-(config$Model$AIF$Method=="Fit Individually: Feng")
 do_fengconv <-(config$Model$AIF$Method=="Fit Individually: FengConv")
 do_splines <-(config$Model$AIF$Method=="Fit Individually: Splines")
@@ -977,6 +1025,27 @@ fit_aif <- config$Model$AIF$Method != "Interpolation"
 
 parametric_aif <- any(do_triexp, do_feng, do_fengconv)
 nonparam_aif <- do_splines
+
+# How the triexponential model describes the rise up to the peak. With
+# "interp", the rise is linear interpolation through the measured samples and
+# only the decay is fitted; with "linear" it is a straight line from t0 to the
+# peak, fitted along with the decay.
+aif_rise <- config$Model$AIF$rise %||% "interp"
+interp_rise <- do_triexp && aif_rise == "interp"
+```
+
+```{r aif-rise-info, echo=FALSE, eval=do_triexp}
+#| results: asis
+
+if( interp_rise ) {
+  str_glue("The rise up to the peak is described by linear interpolation ",
+           "through the measured samples, and only the decay after the peak ",
+           "is fitted. This is more robust, but less flexible, than fitting ",
+           "the rise as a straight line.")
+} else {
+  str_glue("The rise up to the peak is fitted as a straight line from t0 to ",
+           "the peak, along with the decay.")
+}
 ```
 
 ```{r aif-triexp,echo=do_triexp, eval=do_triexp}
@@ -995,13 +1064,18 @@ aif_data <- bidsdata %>%
 expdecay_props <- as.numeric(
   config$Model$AIF$expdecay_props)
 
-expdecay_props <- ifelse( is.na(expdecay_props),
-                          yes = c(1/60, 0.1),
-                          no = expdecay_props)
+if( length(expdecay_props) != 2 || anyNA(expdecay_props) ) {
+  # Not named in the config, so this model's own default is used. Read from
+  # the model rather than written out here, since it is not the same for
+  # every model.
+  expdecay_props <- eval(formals(blmod_exp)$expdecay_props)
+}
 
 aif_data <- aif_data %>%
   mutate(aif_fit = map(aif, ~blmod_exp(time = .x$time, activity = .x$aif,
-                                       Method = .x$Method)))
+                                       Method = .x$Method,
+                                       rise = aif_rise,
+                                       expdecay_props = expdecay_props)))
 
 # Make Predictions
 mintime <- 0
@@ -1043,13 +1117,17 @@ aif_data <- bidsdata %>%
 expdecay_props <- as.numeric(
   config$Model$AIF$expdecay_props)
 
-expdecay_props <- ifelse( is.na(expdecay_props),
-                          yes = c(1/60, 0.1),
-                          no = expdecay_props)
+if( length(expdecay_props) != 2 || anyNA(expdecay_props) ) {
+  # Not named in the config, so this model's own default is used. Read from
+  # the model rather than written out here, since it is not the same for
+  # every model.
+  expdecay_props <- eval(formals(blmod_feng)$expdecay_props)
+}
 
 aif_data <- aif_data %>%
   mutate(aif_fit = map(aif, ~blmod_feng(time = .x$time, activity = .x$aif,
-                                       Method = .x$Method)))
+                                       Method = .x$Method,
+                                       expdecay_props = expdecay_props)))
 
 # Make Predictions
 mintime <- 0
@@ -1090,22 +1168,26 @@ aif_data <- bidsdata %>%
 expdecay_props <- as.numeric(
   config$Model$AIF$expdecay_props)
 
-expdecay_props <- ifelse( is.na(expdecay_props),
-                          yes = c(1/60, 0.1),
-                          no = expdecay_props)
+if( length(expdecay_props) != 2 || anyNA(expdecay_props) ) {
+  # Not named in the config, so this model's own default is used. Read from
+  # the model rather than written out here, since it is not the same for
+  # every model.
+  expdecay_props <- eval(formals(blmod_fengconv)$expdecay_props)
+}
 
 inftime <- config$Model$AIF$inftime
 
 if( is.na(inftime)[1] ) {  # Fit inftime completely
   aif_data <- aif_data %>%
   mutate(aif_fit = map(aif, ~blmod_fengconv(time = .x$time, activity = .x$aif,
-                                       Method = .x$Method )))
+                                       Method = .x$Method,
+                                       expdecay_props = expdecay_props)))
 } else {
   
   aif_data <- aif_data %>%
   mutate(aif_fit = map(aif, ~blmod_fengconv(time = .x$time, activity = .x$aif,
-                                       Method = .x$Method, inftime = inftime
-                                       )))
+                                       Method = .x$Method, inftime = inftime,
+                                       expdecay_props = expdecay_props)))
   
 }
 
@@ -1139,7 +1221,14 @@ aif_data <- aif_data %>%
 #| results: asis
 #| echo: false
 
-str_glue("The fitted parameters are shown below.")
+if( interp_rise ) {
+  str_glue("The fitted parameters are shown below. With an interpolated rise, ",
+           "they describe the decay of the curve, and the straight-line ",
+           "approximation of its rise: the rise itself is the measured data, ",
+           "and the fitted curve is in the interpolated output.")
+} else {
+  str_glue("The fitted parameters are shown below.")
+}
 ```
 
 ```{r aif-parameters,echo=parametric_aif, eval=parametric_aif}
@@ -1245,8 +1334,16 @@ if( !do_fengconv ) {
   config$Model$AIF$inftime <- NULL
 }
 
+if( !do_triexp ) {
+  config$Model$AIF$rise <- NULL
+}
+
 if( !(any(do_triexp, do_feng, do_fengconv)) ) {
   config$Model$AIF$expdecay_props <- NULL
+} else {
+  # The values actually used, rather than the "NA" which asked for the model's
+  # own default
+  config$Model$AIF$expdecay_props <- expdecay_props
 }
 
 if( config$Model$AIF$starttime == 0 ) {
@@ -1420,6 +1517,10 @@ bidsdata <- bidsdata %>%
                                   pull(path) )) %>%
   # Blood tsv file
   mutate(output_basename = basename(bloodfilename),
+         # A merged measurement's curve belongs to all of its runs, and not to
+         # the one whose filename it happened to be derived from.
+         output_basename = if_else(is.na(merged_runs), output_basename,
+                                   bids_drop_entity(output_basename, "run")),
          output_basename = str_replace(output_basename,
                                        "_recording-manual_blood.json",
                                        "_inputfunction.tsv"),
