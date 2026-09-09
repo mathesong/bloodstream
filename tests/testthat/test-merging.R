@@ -229,6 +229,77 @@ test_that("an entity is dropped with its separator, and nothing else", {
                "sub-01_blood.json")
 })
 
+test_that("run labels which are numbers are ordered as numbers, not as strings", {
+  # BIDS does not require run indices to be zero-padded, so run-10 must not
+  # sort ahead of run-2: run_time_offsets() would then read run-2 as crossing
+  # midnight and shift its samples by nearly a day
+  out <- merge_runs(meas(runs = c("10", "2"),
+                         timezero = c("12:00:00", "11:00:00")))
+  expect_equal(out$merged_runs, "2 + 10")
+  expect_equal(out$blooddata[[1]]$Data$Blood$Discrete$Values$time,
+               c(1, 2, 3, 3601, 3602, 3603))
+})
+
+test_that("labels which are not numbers order after the numbered ones", {
+  expect_equal(c("late", "2", "early", "10")[
+    run_label_order(c("late", "2", "early", "10"))],
+    c("2", "10", "early", "late"))
+  expect_equal(c("02", "01")[run_label_order(c("02", "01"))], c("01", "02"))
+})
+
+test_that("runs assumed to share a time zero are checked for overlapping", {
+  # no TimeZero to separate them, and sample times which run over each other:
+  # the assumption that they already share a zero cannot hold
+  warnings <- capture_warnings(merge_runs(meas(timezero = c("0", "0"))))
+  expect_match(warnings, "overlap in time", all = FALSE)
+})
+
+test_that("runs with no time zero which follow each other are accepted", {
+  # the same missing TimeZero, but sample times which do not overlap: taking
+  # them as they are is exactly right. run-start is combined after run-end,
+  # since the labels give no better order, but whether two runs overlap does
+  # not depend on the order they were combined in
+  data <- meas(runs = c("start", "end"), timezero = c("0", "0"))
+  data$blooddata <- list(bd(c(1, 2, 3)), bd(c(3601, 3602, 3603)))
+  warnings <- capture_warnings(out <- merge_runs(data))
+  expect_no_match(warnings, "overlap in time", all = TRUE)
+  expect_equal(out$blooddata[[1]]$Data$Blood$Discrete$Values$time,
+               c(1, 2, 3, 3601, 3602, 3603))
+})
+
+test_that("runs whose TimeZeros place them on top of each other are warned about", {
+  # TimeZeros half a minute apart, but each run sampled across its own hour:
+  # whatever those TimeZeros are, they are not the times the runs began
+  data <- meas(timezero = c("11:00:00", "11:00:30"))
+  data$blooddata <- list(bd(c(0, 1800, 3600)), bd(c(0, 1800, 3600)))
+  warnings <- capture_warnings(merge_runs(data))
+  expect_match(warnings, "overlap in time", all = FALSE)
+  expect_match(warnings, "TimeZero is the time that run", all = FALSE)
+})
+
+test_that("runs placed implausibly far apart are warned about", {
+  # run-start sorts after run-end, so these are combined the wrong way round
+  # and run-start's samples land nearly a day late: the labels cannot say so,
+  # but the gap between the runs can
+  warnings <- capture_warnings(
+    out <- merge_runs(meas(runs = c("start", "end"),
+                           timezero = c("11:00:00", "12:00:00"))))
+  expect_match(warnings, "23 hours apart", all = FALSE)
+  expect_match(warnings, "Check the run labels", all = FALSE)
+})
+
+test_that("runs which follow each other sensibly are not warned about", {
+  # an hour apart, in label order
+  expect_silent(merge_runs(meas()))
+  # a session running past midnight: forty minutes apart, not a day
+  expect_silent(merge_runs(meas(timezero = c("23:50:00", "00:30:00"))))
+  # runs already sharing a clock, whose samples run on from each other in
+  # their own times rather than being offset onto one
+  shared <- meas(runs = c("start", "end"), timezero = c("11:00:00", "11:00:00"))
+  shared$blooddata[[2]] <- bd(c(3601, 3602, 3603))
+  expect_silent(merge_runs(shared))
+})
+
 test_that("runs are combined in label order, whatever order they arrived in", {
   # the same pair, listed backwards: the offsets still run forwards
   reversed <- meas(runs = c("02", "01"), timezero = c("11:20:00", "10:15:00"))
