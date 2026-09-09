@@ -41,6 +41,11 @@ bids_clocktime_seconds <- function(x) {
   hours * 3600 + minutes * 60 + seconds
 }
 
+# petfit carries its own copy of this function and of bids_clocktime_seconds(),
+# so that the two tools merge the same study the same way. The duplication is
+# deliberate and is kept in step by hand: kinfitr does none of the merging, so
+# there would be no caller for the rule if it lived there.
+#
 # The offset to add to each run's sample times, in seconds, so that they all
 # refer to the first run's TimeZero. NULL when any run lacks a usable
 # TimeZero: the caller then treats the times as already sharing a clock, which
@@ -185,6 +190,89 @@ merge_blooddata <- function(blooddata, offsets = rep(0, length(blooddata))) {
   merged
 }
 
+# The order to combine run labels in: the collection order, as far as the
+# labels reveal it. BIDS does not require run indices to be zero-padded, so
+# run-2 and run-10 must be compared as numbers -- as strings, "10" comes
+# first, and run_time_offsets() would then read run-2's earlier clock time as
+# a midnight crossing and shift its samples by a day. Labels which are not
+# numbers, like run-early and run-late, have only their lexical order to go
+# on, and follow the numbered ones.
+run_label_order <- function(runs) {
+
+  runs <- as.character(runs)
+  numeric_value <- suppressWarnings(as.numeric(runs))
+
+  order(is.na(numeric_value), numeric_value, runs, method = "radix")
+}
+
+# Two runs of one injection follow each other within hours: the second starts
+# once the first has finished, not the next day. A larger gap than this between
+# them means they were combined in the wrong order, and that run_time_offsets()
+# has read the earlier run's clock time as a midnight crossing.
+max_plausible_run_gap <- 6 * 3600
+
+# Every sample time a run carries, across all of its blood nodes, in that run's
+# own timing. The nodes are sampled over the same period, but not all of them
+# are always present, so the run's extent is what they hold between them.
+blooddata_sample_times <- function(blooddata) {
+
+  nodes <- list(blooddata$Data$Blood$Discrete,
+                blooddata$Data$Blood$Continuous,
+                blooddata$Data$Plasma,
+                blooddata$Data$Metabolite)
+
+  times <- unlist(purrr::map(nodes, function(n) {
+    if (!isTRUE(n$Avail)) return(NULL)
+    n$Values$time
+  }))
+
+  times[!is.na(times)]
+}
+
+# The span of time each run's samples occupy, once its offset has been applied.
+# A run carrying no samples at all is a point at its own offset.
+run_extents <- function(offsets, blooddata) {
+
+  times <- purrr::map(blooddata, blooddata_sample_times)
+
+  bound <- function(f) {
+    offsets + vapply(times, function(t) {
+      if (length(t) == 0) 0 else f(t)
+    }, numeric(1))
+  }
+
+  list(start = bound(min), end = bound(max))
+}
+
+# The gap between the end of each run and the start of the next, in the order
+# the runs were given. One injection's runs follow each other within hours, so
+# a large gap here means that order is wrong: the run placed second was
+# collected first, and its clock time has been read as a midnight crossing.
+# This question is about the order, so the extents are not sorted.
+run_gaps <- function(offsets, blooddata) {
+
+  extent <- run_extents(offsets, blooddata)
+
+  extent$start[-1] - extent$end[-length(extent$end)]
+}
+
+# Whether any two runs occupy the same time once the offsets have been applied.
+# One injection's runs are sampled one after the other, so an overlap means the
+# runs have not been placed on a common clock correctly, whether that clock came
+# from their TimeZeros or was assumed. Unlike the gaps above this says nothing
+# about the order the runs were given in, so the extents are put in time order
+# before being compared.
+runs_overlap <- function(offsets, blooddata) {
+
+  extent <- run_extents(offsets, blooddata)
+
+  in_time_order <- order(extent$start)
+  starts <- extent$start[in_time_order]
+  ends <- extent$end[in_time_order]
+
+  any(starts[-1] < ends[-length(ends)])
+}
+
 #' Combine the runs of each measurement
 #'
 #' @description Combines runs which belong to a single injection into one
@@ -248,17 +336,55 @@ merge_runs <- function(bidsdata) {
     # them here rather than taking them as they came keeps the result
     # independent of the order the files happened to be listed in, which the
     # midnight unwrapping in run_time_offsets() depends on.
-    group <- group[order(group$run, method = "radix"), , drop = FALSE]
+    group <- group[run_label_order(group$run), , drop = FALSE]
 
     offsets <- run_time_offsets(group$petinfo)
+    on_clock <- !is.null(offsets)
 
-    if (is.null(offsets)) {
+    if (!on_clock) {
       warning("The runs of ", describe_attributes(group[1, group_cols]),
               " could not be placed on a common clock, because at least one ",
               "of them has no TimeZero of the form hh:mm:ss. Their sample ",
               "times have been combined as they are, on the assumption that ",
               "they already share a time zero.", call. = FALSE)
       offsets <- rep(0, nrow(group))
+
+    } else {
+
+      # The offsets are only as good as the order the runs were put in, and a
+      # run label does not always reveal that order: run-start sorts after
+      # run-end, and the unwrapping then reads the earlier run as a day later.
+      gaps <- run_gaps(offsets, group$blooddata)
+
+      if (any(gaps > max_plausible_run_gap)) {
+        warning("The runs of ", describe_attributes(group[1, group_cols]),
+                " have been placed ", round(max(gaps) / 3600, 1), " hours ",
+                "apart, which is longer than one injection is followed for. ",
+                "They were combined in the order ",
+                paste(group$run, collapse = " + "), ", taken from their run ",
+                "labels: if that is not the order they were collected in, ",
+                "their TimeZeros have been read as crossing midnight and ",
+                "their samples shifted by a day. Check the run labels.",
+                call. = FALSE)
+      }
+    }
+
+    # Either way the runs have now been put on one clock, and either way one
+    # injection's runs are sampled one after the other rather than at once.
+    # Samples which occupy the same time mean the placing is wrong, and the
+    # merged curve doubles back on itself.
+    if (runs_overlap(offsets, group$blooddata)) {
+      warning("The runs of ", describe_attributes(group[1, group_cols]),
+              " overlap in time once combined, so their merged curve doubles ",
+              "back on itself. ",
+              if (on_clock) {
+                paste0("Check that each run's TimeZero is the time that run ",
+                       "itself began, rather than one shared by all of them.")
+              } else {
+                paste0("They have no TimeZero to separate them, and so do ",
+                       "not already share a time zero after all: give each ",
+                       "run a TimeZero of the form hh:mm:ss.")
+              }, call. = FALSE)
     }
 
     row <- group[1, , drop = FALSE]
